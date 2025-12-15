@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
 
 export function Footer() {
@@ -9,9 +10,13 @@ export function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
-                <span className="text-lg font-bold text-white">A</span>
-              </div>
+              <Image
+                src="/logo-simple.svg"
+                alt="AxiePro"
+                width={36}
+                height={36}
+                className="rounded-lg"
+              />
               <span className="text-xl font-bold">AxiePro</span>
             </div>
             <p className="text-sm text-muted-foreground">

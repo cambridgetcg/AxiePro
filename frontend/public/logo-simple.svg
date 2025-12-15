@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6"/>
+      <stop offset="100%" style="stop-color:#06B6D4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Abstract A mark -->
+  <path d="M32 8L12 56H24L28 44H36L40 56H52L32 8Z" fill="url(#g)"/>
+  <path d="M32 24L29 38H35L32 24Z" fill="white" fill-opacity="0.2"/>
+
+  <!-- Two dots representing data/analytics -->
+  <circle cx="18" cy="20" r="4" fill="#06B6D4"/>
+  <circle cx="46" cy="16" r="4" fill="#8B5CF6"/>
+</svg>

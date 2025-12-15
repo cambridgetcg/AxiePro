@@ -1,0 +1,21 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6"/>
+      <stop offset="100%" style="stop-color:#06B6D4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="128" height="128" rx="28" fill="#0F0F14"/>
+
+  <!-- Stylized "A" with upward trend -->
+  <path d="M64 24L32 104H48L56 84H72L80 104H96L64 24Z" fill="url(#grad)"/>
+  <path d="M64 48L58 72H70L64 48Z" fill="#0F0F14"/>
+
+  <!-- Trend line -->
+  <path d="M28 88L52 68L76 76L100 52" stroke="url(#grad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Arrow head -->
+  <path d="M92 48L100 52L96 60" stroke="url(#grad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

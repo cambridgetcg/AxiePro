@@ -1,0 +1,24 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6"/>
+      <stop offset="100%" style="stop-color:#06B6D4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Main "A" shape with abstract Axie ears -->
+  <path d="M256 64L128 448H192L220 368H292L320 448H384L256 64Z" fill="url(#gradient1)"/>
+
+  <!-- Inner cutout -->
+  <path d="M256 192L232 304H280L256 192Z" fill="#0F0F14"/>
+
+  <!-- Left ear/horn -->
+  <path d="M176 160C176 160 144 96 160 64C176 96 176 160 176 160Z" fill="url(#gradient1)"/>
+
+  <!-- Right ear/horn -->
+  <path d="M336 160C336 160 368 96 352 64C336 96 336 160 336 160Z" fill="url(#gradient1)"/>
+
+  <!-- Analytics dots -->
+  <circle cx="168" cy="320" r="12" fill="#06B6D4"/>
+  <circle cx="344" cy="280" r="12" fill="#8B5CF6"/>
+</svg>

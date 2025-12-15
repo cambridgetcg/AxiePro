@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -30,9 +31,13 @@ export function Header() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
-            <span className="text-lg font-bold text-white">A</span>
-          </div>
+          <Image
+            src="/logo-simple.svg"
+            alt="AxiePro"
+            width={36}
+            height={36}
+            className="rounded-lg"
+          />
           <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             AxiePro
           </span>
@@ -67,9 +72,13 @@ export function Header() {
             <SheetContent side="right" className="w-[280px]">
               <div className="flex flex-col gap-4 mt-8">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
-                    <span className="text-lg font-bold text-white">A</span>
-                  </div>
+                  <Image
+                    src="/logo-simple.svg"
+                    alt="AxiePro"
+                    width={36}
+                    height={36}
+                    className="rounded-lg"
+                  />
                   <span className="text-xl font-bold">AxiePro</span>
                 </div>
                 {navItems.map((item) => (
