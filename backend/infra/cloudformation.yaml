@@ -1,0 +1,385 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Axie Explorer Big Data Pipeline Infrastructure'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+
+  SecretName:
+    Type: String
+    Default: axie-explorer/api-keys
+    Description: Name of the Secrets Manager secret
+
+  AuroraClusterEndpoint:
+    Type: String
+    Default: op-price-data.cluster-cn4c2su0o42n.us-east-1.rds.amazonaws.com
+    Description: Aurora cluster endpoint
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for Lambda functions
+
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets for Lambda functions
+
+Resources:
+  # ============================================
+  # Kinesis Data Stream for real-time listings
+  # ============================================
+  ListingsStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub 'axie-listings-${Environment}'
+      ShardCount: 1
+      RetentionPeriodHours: 24
+      StreamEncryption:
+        EncryptionType: KMS
+        KeyId: alias/aws/kinesis
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: axie-explorer
+
+  # ============================================
+  # SNS Topics for notifications
+  # ============================================
+  DealAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'axie-deal-alerts-${Environment}'
+      DisplayName: Axie Deal Alerts
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  MetaInsightsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'axie-meta-insights-${Environment}'
+      DisplayName: Axie Meta Insights
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================
+  # IAM Role for Lambda Functions
+  # ============================================
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'axie-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:axie-explorer/*'
+        - PolicyName: KinesisAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                  - kinesis:DescribeStream
+                  - kinesis:DescribeStreamSummary
+                  - kinesis:ListShards
+                Resource: !GetAtt ListingsStream.Arn
+        - PolicyName: SNSPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref DealAlertTopic
+                  - !Ref MetaInsightsTopic
+
+  # ============================================
+  # Security Group for Lambda
+  # ============================================
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub 'axie-lambda-sg-${Environment}'
+      GroupDescription: Security group for Axie Lambda functions
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS outbound
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+          Description: PostgreSQL outbound
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          CidrIp: 0.0.0.0/0
+          Description: Redis outbound
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================
+  # Price Ingestion Lambda
+  # ============================================
+  PriceIngestionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'axie-price-ingestion-${Environment}'
+      Runtime: python3.11
+      Handler: price_ingestion.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          SECRET_NAME: !Ref SecretName
+          AWS_REGION: !Ref AWS::Region
+          POWERTOOLS_SERVICE_NAME: axie-price-ingestion
+          POWERTOOLS_METRICS_NAMESPACE: AxieExplorer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  PriceIngestionSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'axie-price-ingestion-schedule-${Environment}'
+      Description: Trigger price ingestion every 5 minutes
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Id: PriceIngestionTarget
+          Arn: !GetAtt PriceIngestionFunction.Arn
+
+  PriceIngestionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PriceIngestionFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt PriceIngestionSchedule.Arn
+
+  # ============================================
+  # Deal Detector Lambda
+  # ============================================
+  DealDetectorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'axie-deal-detector-${Environment}'
+      Runtime: python3.11
+      Handler: deal_detector.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 256
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          SECRET_NAME: !Ref SecretName
+          AWS_REGION: !Ref AWS::Region
+          DEAL_ALERT_TOPIC_ARN: !Ref DealAlertTopic
+          POWERTOOLS_SERVICE_NAME: axie-deal-detector
+          POWERTOOLS_METRICS_NAMESPACE: AxieExplorer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  DealDetectorEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt ListingsStream.Arn
+      FunctionName: !Ref DealDetectorFunction
+      StartingPosition: LATEST
+      BatchSize: 100
+      MaximumBatchingWindowInSeconds: 5
+
+  # ============================================
+  # Meta Analyzer Lambda
+  # ============================================
+  MetaAnalyzerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'axie-meta-analyzer-${Environment}'
+      Runtime: python3.11
+      Handler: meta_analyzer.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 600
+      MemorySize: 1024
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          SECRET_NAME: !Ref SecretName
+          AWS_REGION: !Ref AWS::Region
+          META_INSIGHTS_TOPIC_ARN: !Ref MetaInsightsTopic
+          POWERTOOLS_SERVICE_NAME: axie-meta-analyzer
+          POWERTOOLS_METRICS_NAMESPACE: AxieExplorer
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  MetaAnalyzerSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'axie-meta-analyzer-schedule-${Environment}'
+      Description: Trigger meta analysis every hour
+      ScheduleExpression: 'rate(1 hour)'
+      State: ENABLED
+      Targets:
+        - Id: MetaAnalyzerTarget
+          Arn: !GetAtt MetaAnalyzerFunction.Arn
+
+  MetaAnalyzerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MetaAnalyzerFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MetaAnalyzerSchedule.Arn
+
+  # ============================================
+  # CloudWatch Dashboard
+  # ============================================
+  MonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'AxieExplorer-${Environment}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Price Ingestion",
+                "metrics": [
+                  ["AxieExplorer", "SnapshotsStored", "service", "axie-price-ingestion"],
+                  [".", "IngestionErrors", ".", "."]
+                ],
+                "region": "${AWS::Region}",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Deal Detection",
+                "metrics": [
+                  ["AxieExplorer", "DealsFound", "service", "axie-deal-detector"],
+                  [".", "SnipesFound", ".", "."],
+                  [".", "DealNotificationsSent", ".", "."]
+                ],
+                "region": "${AWS::Region}",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Meta Analysis",
+                "metrics": [
+                  ["AxieExplorer", "MetaShiftsDetected", "service", "axie-meta-analyzer"],
+                  [".", "MetaShifts_rising", ".", "."],
+                  [".", "MetaShifts_falling", ".", "."]
+                ],
+                "region": "${AWS::Region}",
+                "period": 3600
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Lambda Errors",
+                "metrics": [
+                  ["AWS/Lambda", "Errors", "FunctionName", "axie-price-ingestion-${Environment}"],
+                  [".", ".", ".", "axie-deal-detector-${Environment}"],
+                  [".", ".", ".", "axie-meta-analyzer-${Environment}"]
+                ],
+                "region": "${AWS::Region}",
+                "period": 300,
+                "stat": "Sum"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  ListingsStreamArn:
+    Description: ARN of the Kinesis listings stream
+    Value: !GetAtt ListingsStream.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ListingsStreamArn'
+
+  ListingsStreamName:
+    Description: Name of the Kinesis listings stream
+    Value: !Ref ListingsStream
+    Export:
+      Name: !Sub '${AWS::StackName}-ListingsStreamName'
+
+  DealAlertTopicArn:
+    Description: ARN of the deal alerts SNS topic
+    Value: !Ref DealAlertTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-DealAlertTopicArn'
+
+  MetaInsightsTopicArn:
+    Description: ARN of the meta insights SNS topic
+    Value: !Ref MetaInsightsTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-MetaInsightsTopicArn'
+
+  LambdaSecurityGroupId:
+    Description: Security group ID for Lambda functions
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaSecurityGroupId'

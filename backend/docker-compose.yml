@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: axie_postgres
+    environment:
+      POSTGRES_USER: axie
+      POSTGRES_PASSWORD: axie_dev_password
+      POSTGRES_DB: axie_explorer
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U axie -d axie_explorer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: axie_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Uncomment when ready to containerize the backend
+  # backend:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: axie_backend
+  #   environment:
+  #     DATABASE_URL: postgresql://axie:axie_dev_password@db:5432/axie_explorer
+  #     REDIS_URL: redis://redis:6379
+  #     MORALIS_API_KEY: ${MORALIS_API_KEY}
+  #     SKYMAVIS_API_KEY: ${SKYMAVIS_API_KEY}
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./src:/app/src
+
+  # Uncomment when ready to run Celery workers
+  # celery:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: axie_celery
+  #   command: celery -A src.worker worker --loglevel=info
+  #   environment:
+  #     DATABASE_URL: postgresql://axie:axie_dev_password@db:5432/axie_explorer
+  #     REDIS_URL: redis://redis:6379
+  #     MORALIS_API_KEY: ${MORALIS_API_KEY}
+  #     SKYMAVIS_API_KEY: ${SKYMAVIS_API_KEY}
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

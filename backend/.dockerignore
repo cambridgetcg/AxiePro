@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files (secrets should come from AWS)
+.env
+.env.*
+*.env
+
+# Documentation (not needed in container)
+*.md
+docs/
+
+# Development files
+docker-compose.yml
+Makefile
+
+# Alembic versions are needed for migrations
+# Don't ignore: alembic/
+
+# Tests (optional - can exclude for smaller image)
+# tests/
