@@ -13,12 +13,14 @@ import {
   Dna,
   Wallet,
   Home,
+  Target,
 } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/explorer", label: "Explorer", icon: Search },
   { href: "/market", label: "Market", icon: TrendingUp },
+  { href: "/deals", label: "Deals", icon: Target },
   { href: "/breeding", label: "Breeding", icon: Dna },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ];

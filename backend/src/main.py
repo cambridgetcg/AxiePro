@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_settings
 from src.models import init_db, close_db
-from src.api.routes import axies, market, breeding, wallets
+from src.api.routes import axies, market, breeding, wallets, valuation
 
 
 @asynccontextmanager
@@ -46,6 +46,8 @@ app = FastAPI(
     * **Breeding Simulator** - Calculate breeding outcomes and find optimal pairs
     * **Wallet Tracking** - Track wallet holdings and trading history
     * **Gene Analysis** - Parse and analyze Axie genes
+    * **Valuation** - Fair market value estimation using hedonic pricing models
+    * **Deal Detection** - Identify undervalued listings and snipe opportunities
 
     ## Authentication
 
@@ -84,6 +86,7 @@ app.include_router(axies.router, prefix="/api/v1")
 app.include_router(market.router, prefix="/api/v1")
 app.include_router(breeding.router, prefix="/api/v1")
 app.include_router(wallets.router, prefix="/api/v1")
+app.include_router(valuation.router, prefix="/api/v1")
 
 
 # Root endpoint
