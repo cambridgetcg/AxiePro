@@ -21,9 +21,6 @@ aiohttp==3.9.3
 pandas==2.2.0
 numpy==1.26.3
 
-# Axie Gene Parsing
-agp==2.0.3  # Axie Gene Parser
-
 # Validation & Settings
 pydantic==2.5.3
 pydantic-settings==2.1.0
