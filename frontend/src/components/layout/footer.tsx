@@ -56,14 +56,24 @@ export function Footer() {
             <h3 className="font-semibold mb-3">Resources</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link href="/docs" className="hover:text-foreground transition-colors">
-                  Documentation
-                </Link>
+                <a
+                  href="https://api.axiepro.io/api/v1/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors"
+                >
+                  API Documentation
+                </a>
               </li>
               <li>
-                <Link href="/api" className="hover:text-foreground transition-colors">
-                  API
-                </Link>
+                <a
+                  href="https://docs.axieinfinity.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors"
+                >
+                  Axie Wiki
+                </a>
               </li>
               <li>
                 <a

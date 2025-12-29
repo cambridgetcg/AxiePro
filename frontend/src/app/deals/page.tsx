@@ -11,18 +11,19 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { PriceDisplay } from '@/components/valuation/price-display';
-import { DealIndicator } from '@/components/valuation/deal-indicator';
+import { DealDetailCard, DealDetailCardSkeleton } from '@/components/deals';
 import {
   Target,
   Zap,
   RefreshCw,
-  ExternalLink,
   Filter,
+  LayoutGrid,
+  LayoutList,
 } from 'lucide-react';
-import { AXIE_CLASSES, type AxieClass, type Deal } from '@/types/valuation';
+import { AXIE_CLASSES, type AxieClass } from '@/types/valuation';
 import { cn } from '@/lib/utils';
+
+type ViewMode = 'grid' | 'list';
 
 type TabType = 'deals' | 'snipes';
 
@@ -30,6 +31,7 @@ export default function DealsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('deals');
   const [selectedClass, setSelectedClass] = useState<AxieClass | undefined>();
   const [minScore, setMinScore] = useState(50);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Fetch data based on active tab
   const dealsQuery = useDeals(
@@ -57,6 +59,25 @@ export default function DealsPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center border rounded-lg">
+              <Button
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('grid')}
+                className="rounded-r-none"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className="rounded-l-none"
+              >
+                <LayoutList className="h-4 w-4" />
+              </Button>
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -154,14 +175,27 @@ export default function DealsPage() {
         )}
 
         {/* Results */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div
+          className={cn(
+            'gap-4',
+            viewMode === 'grid'
+              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+              : 'flex flex-col'
+          )}
+        >
           {isLoading ? (
             // Loading skeletons
             Array.from({ length: 6 }).map((_, i) => (
-              <DealCardSkeleton key={i} />
+              <DealDetailCardSkeleton key={i} />
             ))
           ) : data?.data && data.data.length > 0 ? (
-            data.data.map((deal) => <DealCard key={deal.axie_id} deal={deal} />)
+            data.data.map((deal) => (
+              <DealDetailCard
+                key={deal.axie_id}
+                deal={deal}
+                className={viewMode === 'list' ? 'max-w-3xl' : undefined}
+              />
+            ))
           ) : (
             <Card className="col-span-full">
               <CardContent className="py-12 text-center">
@@ -182,93 +216,5 @@ export default function DealsPage() {
         )}
       </div>
     </div>
-  );
-}
-
-/**
- * Individual deal card component.
- */
-function DealCard({ deal }: { deal: Deal }) {
-  return (
-    <Card className="hover:border-primary/50 transition-colors">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="text-lg">Axie #{deal.axie_id}</CardTitle>
-            <CardDescription className="capitalize">
-              {deal.class}
-            </CardDescription>
-          </div>
-          <DealIndicator
-            discountPercent={deal.discount_percent}
-            isDeal={deal.deal_type === 'deal'}
-            isSnipe={deal.deal_type === 'snipe'}
-          />
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <p className="text-xs text-muted-foreground">Listing</p>
-            <PriceDisplay ethValue={deal.listing_price_eth} size="md" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Fair Value</p>
-            <PriceDisplay ethValue={deal.fair_value_eth} size="md" />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-2 border-t">
-          <Badge variant="secondary">Score: {deal.deal_score}</Badge>
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={deal.marketplace_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="gap-1"
-            >
-              <ExternalLink className="h-3 w-3" />
-              View
-            </a>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/**
- * Loading skeleton for deal card.
- */
-function DealCardSkeleton() {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-4 w-16" />
-          </div>
-          <Skeleton className="h-6 w-16" />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="h-5 w-20" />
-          </div>
-          <div className="space-y-1">
-            <Skeleton className="h-3 w-14" />
-            <Skeleton className="h-5 w-20" />
-          </div>
-        </div>
-        <div className="flex items-center justify-between pt-2 border-t">
-          <Skeleton className="h-5 w-16" />
-          <Skeleton className="h-8 w-16" />
-        </div>
-      </CardContent>
-    </Card>
   );
 }

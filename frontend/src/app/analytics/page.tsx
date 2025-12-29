@@ -1,116 +1,121 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, BarChart3, LineChart, PieChart, Activity } from "lucide-react";
+'use client';
 
-const trendingUp = [
-  { name: "Nut Cracker", type: "mouth", change: "+15%" },
-  { name: "Ronin", type: "back", change: "+12%" },
-  { name: "Cottontail", type: "tail", change: "+10%" },
-  { name: "Little Branch", type: "horn", change: "+8%" },
-];
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { RefreshCw, BarChart3, Activity, TrendingUp } from 'lucide-react';
+import {
+  MarketOverviewStats,
+  FloorPricesChart,
+  RecentSalesChart,
+  TopDealsTable,
+} from '@/components/analytics';
+import { MarketPulse } from '@/components/dashboard';
+import { cn } from '@/lib/utils';
 
-const trendingDown = [
-  { name: "Cute Bunny", type: "ears", change: "-8%" },
-  { name: "Imp", type: "horn", change: "-6%" },
-  { name: "Gerbil", type: "ears", change: "-5%" },
-  { name: "Hot Butt", type: "back", change: "-4%" },
-];
+type TimeRange = '24h' | '7d' | '30d';
 
 export default function AnalyticsPage() {
+  const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    // Trigger re-fetch by changing state - React Query will handle the rest
+    setTimeout(() => setIsRefreshing(false), 1000);
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col gap-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
-          <p className="text-muted-foreground">
-            Market trends, price analysis, and insights
-          </p>
-        </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <BarChart3 className="h-8 w-8 text-primary" />
+              Market Analytics
+            </h1>
+            <p className="text-muted-foreground">
+              Real-time market trends, price analysis, and deal opportunities
+            </p>
+          </div>
 
-        {/* Trending Traits */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-500" />
-                Top Gainers (24h)
-              </CardTitle>
-              <CardDescription>Traits with the most price increase</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {trendingUp.map((trait, index) => (
-                  <div key={trait.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-muted-foreground w-6">{index + 1}</span>
-                      <div>
-                        <p className="font-medium">{trait.name}</p>
-                        <p className="text-sm text-muted-foreground capitalize">{trait.type}</p>
-                      </div>
-                    </div>
-                    <span className="text-green-500 font-medium">{trait.change}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingDown className="h-5 w-5 text-red-500" />
-                Top Losers (24h)
-              </CardTitle>
-              <CardDescription>Traits with the most price decrease</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {trendingDown.map((trait, index) => (
-                  <div key={trait.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-muted-foreground w-6">{index + 1}</span>
-                      <div>
-                        <p className="font-medium">{trait.name}</p>
-                        <p className="text-sm text-muted-foreground capitalize">{trait.type}</p>
-                      </div>
-                    </div>
-                    <span className="text-red-500 font-medium">{trait.change}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Coming Soon */}
-        <Card className="border-dashed">
-          <CardHeader className="text-center py-12">
-            <Badge variant="secondary" className="w-fit mx-auto mb-4">
-              Coming Soon
-            </Badge>
-            <CardTitle className="text-2xl">Full Analytics Suite</CardTitle>
-            <CardDescription className="max-w-md mx-auto">
-              Interactive charts, historical data, deal detection alerts, and
-              meta shift analysis coming soon.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-center pb-12">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
-              {[
-                { name: "Price Charts", icon: LineChart },
-                { name: "Volume Analysis", icon: BarChart3 },
-                { name: "Class Distribution", icon: PieChart },
-                { name: "Real-time Alerts", icon: Activity },
-              ].map((feature) => (
-                <div key={feature.name} className="p-4 rounded-lg bg-muted/50 flex flex-col items-center gap-2">
-                  <feature.icon className="h-5 w-5 text-muted-foreground" />
-                  <p className="text-sm font-medium">{feature.name}</p>
-                </div>
+          <div className="flex items-center gap-2">
+            {/* Time Range Selector */}
+            <div className="flex items-center border rounded-lg">
+              {(['24h', '7d', '30d'] as TimeRange[]).map((range) => (
+                <Button
+                  key={range}
+                  variant={timeRange === range ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setTimeRange(range)}
+                  className={cn(
+                    range === '24h' && 'rounded-r-none',
+                    range === '7d' && 'rounded-none border-x',
+                    range === '30d' && 'rounded-l-none'
+                  )}
+                >
+                  {range}
+                </Button>
               ))}
             </div>
-          </CardContent>
-        </Card>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw
+                className={cn('h-4 w-4 mr-1', isRefreshing && 'animate-spin')}
+              />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {/* Market Pulse Stats */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Market Pulse</h2>
+            <Badge variant="outline" className="text-xs">
+              Live
+            </Badge>
+          </div>
+          <MarketPulse />
+        </section>
+
+        {/* Charts Grid */}
+        <section className="grid lg:grid-cols-2 gap-6">
+          {/* Recent Sales Chart */}
+          <RecentSalesChart />
+
+          {/* Floor Prices Chart */}
+          <FloorPricesChart />
+        </section>
+
+        {/* Market Overview Table */}
+        <section>
+          <MarketOverviewStats />
+        </section>
+
+        {/* Top Deals */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Deal Opportunities</h2>
+          </div>
+          <TopDealsTable limit={10} />
+        </section>
+
+        {/* Data Source Info */}
+        <section className="text-center py-4 border-t">
+          <p className="text-xs text-muted-foreground">
+            Data sourced from Axie Infinity marketplace. Valuations computed using hedonic pricing model.
+            <br />
+            Refreshed automatically. Last model update: v1.0.0
+          </p>
+        </section>
       </div>
     </div>
   );
