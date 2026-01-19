@@ -1,4 +1,5 @@
 'use client';
+// Deal Discovery page - find undervalued Axies
 
 import { useState } from 'react';
 import { useDeals, useSnipes } from '@/hooks';
