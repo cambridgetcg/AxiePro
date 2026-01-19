@@ -8,14 +8,11 @@
         "RuntimeEnvironmentVariables": {
           "ENVIRONMENT": "production",
           "LOG_LEVEL": "INFO",
-          "USE_AWS_SECRETS": "true",
           "AWS_REGION": "us-east-1",
-          "USE_IAM_AUTH": "true",
-          "DB_HOST": "cardforum.cn4c2su0o42n.us-east-1.rds.amazonaws.com",
-          "DB_PORT": "5432",
-          "DB_NAME": "cardforum",
-          "DB_USER": "iamuser",
-          "REDIS_URL": "redis://axiepro-redis.jhgio5.0001.use1.cache.amazonaws.com:6379"
+          "DATABASE_URL": "postgresql+asyncpg://postgres:***REMOVED-ROTATE-ME***@cardforum.cn4c2su0o42n.us-east-1.rds.amazonaws.com:5432/postgres",
+          "REDIS_URL": "redis://axiepro-redis.jhgio5.0001.use1.cache.amazonaws.com:6379",
+          "GOLDRUSH_API_KEY": "***REMOVED-ROTATE-ME***",
+          "SKYMAVIS_API_KEY": "***REMOVED-ROTATE-ME***"
         }
       },
       "ImageRepositoryType": "ECR"
