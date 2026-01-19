@@ -70,32 +70,103 @@ Ronin_API/
 
 ## Quick Start
 
-```bash
-# Backend
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn src.main:app --reload
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- PostgreSQL (or Docker)
+- Redis (or Docker)
 
-# Frontend
+### Backend Setup
+
+```bash
+cd backend
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Copy environment template and configure
+cp .env.example .env
+# Edit .env with your database credentials and API keys
+
+# Run database migrations
+alembic upgrade head
+
+# Start the server
+uvicorn src.main:app --reload --port 8000
+```
+
+### Frontend Setup
+
+```bash
 cd frontend
+
+# Install dependencies
 npm install
+
+# Copy environment template (optional - defaults work for local dev)
+cp .env.example .env.local
+
+# Start the development server
 npm run dev
 ```
 
+The frontend runs on `http://localhost:3000` and automatically proxies API requests to the backend at `http://localhost:8000`.
+
 ## Environment Variables
 
-```env
-# Backend (.env)
-DATABASE_URL=postgresql://user:pass@localhost:5432/axie_explorer
-REDIS_URL=redis://localhost:6379
-MORALIS_API_KEY=your_key
-SKYMAVIS_API_KEY=your_key
+### Backend (.env)
 
-# Frontend (.env.local)
-NEXT_PUBLIC_API_URL=http://localhost:8000
+```env
+# Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/axie_explorer
+
+# Redis Cache
+REDIS_URL=redis://localhost:6379
+
+# External APIs
+GOLDRUSH_API_KEY=your_goldrush_key
+SKYMAVIS_API_KEY=your_skymavis_key
+
+# App Settings
+DEBUG=true
+LOG_LEVEL=DEBUG
+ENVIRONMENT=development
+
+# CORS (comma-separated domains, or * for development)
+CORS_ORIGINS=*
 ```
+
+### Frontend (.env.local)
+
+```env
+# Leave empty to use Next.js proxy (recommended for local development)
+NEXT_PUBLIC_API_URL=
+
+# For production deployments, set to your backend URL:
+# NEXT_PUBLIC_API_URL=https://api.axiepro.io
+```
+
+## Production Deployment
+
+### Frontend (Vercel)
+
+1. Connect your repository to Vercel
+2. Set environment variable in Vercel dashboard:
+   - `NEXT_PUBLIC_API_URL` = Your deployed backend URL (e.g., `https://api.axiepro.io`)
+
+### Backend (AWS)
+
+The infrastructure is managed via AWS CDK. See [infrastructure/README.md](infrastructure/README.md) for deployment instructions.
+
+Key services:
+- **App Runner** - Hosts the FastAPI backend
+- **Aurora PostgreSQL** - Database
+- **ElastiCache Redis** - Caching
+- **Lambda** - Scheduled jobs (price ingestion, deal detection)
 
 ## License
 
