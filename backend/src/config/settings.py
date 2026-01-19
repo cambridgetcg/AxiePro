@@ -32,12 +32,15 @@ def _generate_iam_token(host: str, port: int, user: str, region: str) -> str:
 
 
 def _get_aws_secrets() -> dict:
-    """Load secrets from AWS Secrets Manager if in production."""
-    if os.getenv("AWS_EXECUTION_ENV") or os.getenv("USE_AWS_SECRETS"):
+    """Load secrets from AWS Secrets Manager if explicitly enabled."""
+    # Only try Secrets Manager if USE_AWS_SECRETS is explicitly set to "true"
+    # This allows passing credentials directly via environment variables
+    if os.getenv("USE_AWS_SECRETS", "").lower() == "true":
         try:
             from .aws_secrets import get_api_keys
             return get_api_keys()
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed to load AWS secrets: {e}")
             pass
     return {}
 
