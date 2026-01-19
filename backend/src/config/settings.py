@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     environment: str = "development"  # development, staging, production
 
+    # CORS - comma-separated list of allowed origins
+    # In production, set to your frontend domain(s)
+    cors_origins: str = "*"  # e.g., "https://axiepro.vercel.app,https://axiepro.io"
+
     # Database
     database_url: str = "postgresql://axie:axie_dev_password@localhost:5432/axie_explorer"
 
