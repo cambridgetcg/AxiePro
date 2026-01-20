@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
 import {
   Search,
   Menu,
@@ -14,13 +15,16 @@ import {
   Wallet,
   Home,
   Target,
+  Sparkles,
+  PiggyBank,
 } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/explorer", label: "Explorer", icon: Search },
-  { href: "/market", label: "Market", icon: TrendingUp },
   { href: "/deals", label: "Deals", icon: Target },
+  { href: "/meta", label: "Meta", icon: Sparkles, isNew: true },
+  { href: "/portfolio", label: "Portfolio", icon: PiggyBank, isNew: true },
   { href: "/breeding", label: "Breeding", icon: Dna },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
@@ -49,9 +53,14 @@ export function Header() {
         <nav className="hidden md:flex items-center gap-1">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href}>
-              <Button variant="ghost" className="gap-2">
+              <Button variant="ghost" className="gap-2 relative">
                 <item.icon className="h-4 w-4" />
                 {item.label}
+                {item.isNew && (
+                  <Badge className="absolute -top-1 -right-1 text-[8px] px-1 py-0 h-4 bg-green-500">
+                    New
+                  </Badge>
+                )}
               </Button>
             </Link>
           ))}
@@ -92,6 +101,11 @@ export function Header() {
                     <Button variant="ghost" className="w-full justify-start gap-2">
                       <item.icon className="h-4 w-4" />
                       {item.label}
+                      {item.isNew && (
+                        <Badge className="ml-auto text-[8px] px-1 py-0 h-4 bg-green-500">
+                          New
+                        </Badge>
+                      )}
                     </Button>
                   </Link>
                 ))}

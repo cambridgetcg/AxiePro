@@ -30,7 +30,8 @@ import {
   Zap,
   Clock,
 } from 'lucide-react';
-import type { Deal } from '@/types/valuation';
+import type { Deal, DealTier } from '@/types/valuation';
+import { DEAL_TIER_CONFIG } from '@/types/valuation';
 
 interface DealDetailCardProps {
   /** Deal data */
@@ -79,13 +80,33 @@ export function DealDetailCard({
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
               Axie #{deal.axie_id}
-              {isSnipe && (
+              {deal.tier && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    DEAL_TIER_CONFIG[deal.tier as DealTier]?.bgColor,
+                    DEAL_TIER_CONFIG[deal.tier as DealTier]?.color,
+                    deal.tier === 'snipe' && 'border-red-500/50',
+                    deal.tier === 'elite' && 'border-orange-500/50',
+                    deal.tier === 'good' && 'border-yellow-500/50',
+                    deal.tier === 'fair' && 'border-green-500/50'
+                  )}
+                >
+                  {deal.tier === 'snipe' ? (
+                    <Zap className="h-3 w-3 mr-1" />
+                  ) : (
+                    <Target className="h-3 w-3 mr-1" />
+                  )}
+                  {deal.tier_label || DEAL_TIER_CONFIG[deal.tier as DealTier]?.label}
+                </Badge>
+              )}
+              {!deal.tier && isSnipe && (
                 <Badge variant="outline" className="bg-orange-500/10 text-orange-500 border-orange-500/50">
                   <Zap className="h-3 w-3 mr-1" />
                   Snipe
                 </Badge>
               )}
-              {isDeal && !isSnipe && (
+              {!deal.tier && isDeal && !isSnipe && (
                 <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/50">
                   <Target className="h-3 w-3 mr-1" />
                   Deal
@@ -129,25 +150,74 @@ export function DealDetailCard({
           </div>
         </div>
 
-        {/* Deal Score Bar */}
-        <div className="space-y-1">
+        {/* Normalized Score with Tier */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Deal Quality</span>
+            {deal.tier && (
+              <Badge
+                className={cn(
+                  'text-xs font-semibold',
+                  DEAL_TIER_CONFIG[deal.tier as DealTier]?.bgColor,
+                  DEAL_TIER_CONFIG[deal.tier as DealTier]?.color
+                )}
+              >
+                {deal.tier_label || DEAL_TIER_CONFIG[deal.tier as DealTier]?.label}
+              </Badge>
+            )}
+          </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Deal Score</span>
-            <span className="font-medium">{deal.deal_score.toFixed(0)}/100</span>
+            <span className="text-muted-foreground">Score</span>
+            <span className="font-medium">
+              {(deal.normalized_score ?? deal.deal_score).toFixed(0)}/100
+            </span>
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div
               className={cn(
                 'h-full rounded-full transition-all',
-                deal.deal_score >= 80
-                  ? 'bg-green-500'
-                  : deal.deal_score >= 60
-                    ? 'bg-yellow-500'
-                    : 'bg-orange-500'
+                deal.tier === 'snipe'
+                  ? 'bg-red-500'
+                  : deal.tier === 'elite'
+                    ? 'bg-orange-500'
+                    : deal.tier === 'good'
+                      ? 'bg-yellow-500'
+                      : deal.tier === 'fair'
+                        ? 'bg-green-500'
+                        : 'bg-gray-400'
               )}
-              style={{ width: `${deal.deal_score}%` }}
+              style={{ width: `${deal.normalized_score ?? deal.deal_score}%` }}
             />
           </div>
+          {/* Score Components Breakdown */}
+          {deal.score_components && (
+            <div className="grid grid-cols-4 gap-1 pt-1">
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground">Discount</p>
+                <p className="text-xs font-medium">
+                  {(deal.score_components.discount_percentile * 100).toFixed(0)}%
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground">Confidence</p>
+                <p className="text-xs font-medium">
+                  {(deal.score_components.confidence_percentile * 100).toFixed(0)}%
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground">Liquidity</p>
+                <p className="text-xs font-medium">
+                  {(deal.score_components.liquidity_score * 100).toFixed(0)}%
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground">Freshness</p>
+                <p className="text-xs font-medium">
+                  {(deal.score_components.time_score * 100).toFixed(0)}%
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Z-Score */}

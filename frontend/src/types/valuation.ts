@@ -101,6 +101,60 @@ export interface BatchValuationResponse {
 }
 
 /**
+ * Deal tier types for normalized scoring.
+ */
+export type DealTier = 'snipe' | 'elite' | 'good' | 'fair' | 'pass';
+
+/**
+ * Tier configuration for display.
+ */
+export const DEAL_TIER_CONFIG: Record<
+  DealTier,
+  { label: string; color: string; bgColor: string; description: string }
+> = {
+  snipe: {
+    label: 'SNIPE',
+    color: 'text-red-600',
+    bgColor: 'bg-red-500/10',
+    description: 'Act immediately - exceptional value',
+  },
+  elite: {
+    label: 'Elite Deal',
+    color: 'text-orange-500',
+    bgColor: 'bg-orange-500/10',
+    description: 'Strong buy opportunity',
+  },
+  good: {
+    label: 'Good Deal',
+    color: 'text-yellow-500',
+    bgColor: 'bg-yellow-500/10',
+    description: 'Above average value',
+  },
+  fair: {
+    label: 'Fair Deal',
+    color: 'text-green-500',
+    bgColor: 'bg-green-500/10',
+    description: 'Marginal opportunity',
+  },
+  pass: {
+    label: 'Pass',
+    color: 'text-gray-500',
+    bgColor: 'bg-gray-500/10',
+    description: 'Below threshold',
+  },
+};
+
+/**
+ * Normalized score components breakdown.
+ */
+export interface ScoreComponents {
+  discount_percentile: number;
+  confidence_percentile: number;
+  liquidity_score: number;
+  time_score: number;
+}
+
+/**
  * Individual deal from deals list.
  */
 export interface Deal {
@@ -114,6 +168,12 @@ export interface Deal {
   deal_type: 'deal' | 'snipe';
   marketplace_url: string;
   detected_at: string;
+  // Normalized scoring fields (when include_normalized=true)
+  normalized_score?: number;
+  tier?: DealTier;
+  tier_label?: string;
+  tier_color?: string;
+  score_components?: ScoreComponents;
 }
 
 /**
