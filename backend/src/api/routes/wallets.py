@@ -3,13 +3,16 @@ Wallet API endpoints.
 
 Provides routes for:
 - Wallet overview and stats
-- Holdings
+- Holdings with P&L tracking
+- Portfolio valuation and analytics
 - Trade history
 """
 
 from datetime import datetime
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from decimal import Decimal
+from typing import Optional, List
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,6 +21,43 @@ from src.models import Wallet, WalletHolding, Axie, Sale, get_db
 from src.services.moralis_client import MoralisClient
 
 router = APIRouter(prefix="/wallets", tags=["wallets"])
+
+
+# =========================================================================
+# Pydantic Models for Portfolio P&L
+# =========================================================================
+
+class HoldingPnL(BaseModel):
+    """Individual holding with P&L data."""
+    axie_id: int
+    acquired_at: Optional[str]
+    acquisition_type: Optional[str]
+    cost_basis_eth: Optional[float]
+    current_value_eth: Optional[float]
+    last_valued_at: Optional[str]
+    unrealized_pnl_eth: Optional[float]
+    unrealized_pnl_percent: Optional[float]
+    has_cost_basis: bool
+
+
+class PortfolioSummary(BaseModel):
+    """Aggregated portfolio P&L summary."""
+    wallet_address: str
+    holdings_count: int
+    total_cost_basis_eth: Optional[float]
+    total_current_value_eth: Optional[float]
+    total_unrealized_pnl_eth: Optional[float]
+    total_unrealized_pnl_percent: Optional[float]
+    holdings_with_cost_basis: int
+    holdings_missing_cost_basis: int
+    last_valuation_at: Optional[str]
+
+
+class PortfolioResponse(BaseModel):
+    """Response for portfolio endpoints."""
+    success: bool
+    data: dict
+    meta: dict
 
 
 @router.get("/{address}")
@@ -226,4 +266,318 @@ async def get_wallet_trades(
             "per_page": per_page,
             "total_pages": (total + per_page - 1) // per_page,
         }
+    }
+
+
+# =========================================================================
+# Portfolio P&L Endpoints
+# =========================================================================
+
+@router.get("/{address}/portfolio", response_model=PortfolioResponse)
+async def get_portfolio_summary(
+    address: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get portfolio P&L summary for a wallet.
+
+    Returns aggregated portfolio metrics:
+    - Total holdings value (using hedonic valuations)
+    - Total cost basis (from acquisition prices)
+    - Unrealized P&L (absolute and percentage)
+    - Coverage stats (how many holdings have cost basis)
+    """
+    address = address.lower()
+
+    # Get wallet with holdings
+    result = await db.execute(
+        select(Wallet)
+        .where(Wallet.address == address)
+        .options(selectinload(Wallet.holdings))
+    )
+    wallet = result.scalar_one_or_none()
+
+    if not wallet:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Wallet {address} not found or not tracked"
+        )
+
+    # Aggregate P&L metrics
+    holdings = wallet.holdings
+    total_cost_basis = Decimal(0)
+    total_current_value = Decimal(0)
+    holdings_with_basis = 0
+    holdings_missing_basis = 0
+    last_valued = None
+
+    for holding in holdings:
+        # Recompute P&L for each holding
+        holding.compute_unrealized_pnl()
+
+        if holding.has_cost_basis:
+            total_cost_basis += holding.cost_basis_eth or Decimal(0)
+            holdings_with_basis += 1
+        else:
+            holdings_missing_basis += 1
+
+        if holding.current_value_eth:
+            total_current_value += holding.current_value_eth
+
+        if holding.last_valued_at:
+            if last_valued is None or holding.last_valued_at > last_valued:
+                last_valued = holding.last_valued_at
+
+    # Calculate total unrealized P&L
+    total_pnl = None
+    total_pnl_percent = None
+
+    if total_cost_basis > 0 and total_current_value > 0:
+        total_pnl = total_current_value - total_cost_basis
+        total_pnl_percent = (total_pnl / total_cost_basis) * 100
+
+    summary = PortfolioSummary(
+        wallet_address=address,
+        holdings_count=len(holdings),
+        total_cost_basis_eth=float(total_cost_basis) if total_cost_basis else None,
+        total_current_value_eth=float(total_current_value) if total_current_value else None,
+        total_unrealized_pnl_eth=float(total_pnl) if total_pnl else None,
+        total_unrealized_pnl_percent=float(total_pnl_percent) if total_pnl_percent else None,
+        holdings_with_cost_basis=holdings_with_basis,
+        holdings_missing_cost_basis=holdings_missing_basis,
+        last_valuation_at=last_valued.isoformat() if last_valued else None,
+    )
+
+    return {
+        "success": True,
+        "data": summary.model_dump(),
+        "meta": {
+            "timestamp": datetime.utcnow().isoformat(),
+            "coverage_percent": round(
+                (holdings_with_basis / len(holdings) * 100) if holdings else 0, 1
+            ),
+        }
+    }
+
+
+@router.get("/{address}/portfolio/holdings")
+async def get_portfolio_holdings(
+    address: str,
+    include_valuation: bool = Query(True, description="Include current valuation"),
+    only_with_pnl: bool = Query(False, description="Only return holdings with cost basis"),
+    sort_by: str = Query(
+        "unrealized_pnl",
+        description="Sort by: unrealized_pnl, cost_basis, current_value, acquired_at"
+    ),
+    sort_order: str = Query("desc", description="Sort order: asc, desc"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get detailed holdings with P&L for each Axie.
+
+    Returns individual holding-level P&L data for portfolio analysis.
+    Use `only_with_pnl=true` to filter for holdings that have cost basis.
+    """
+    address = address.lower()
+
+    # Get wallet with holdings
+    result = await db.execute(
+        select(Wallet)
+        .where(Wallet.address == address)
+        .options(selectinload(Wallet.holdings))
+    )
+    wallet = result.scalar_one_or_none()
+
+    if not wallet:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Wallet {address} not found or not tracked"
+        )
+
+    holdings_data = []
+
+    for holding in wallet.holdings:
+        # Recompute P&L
+        holding.compute_unrealized_pnl()
+
+        # Filter if needed
+        if only_with_pnl and not holding.has_cost_basis:
+            continue
+
+        holdings_data.append(HoldingPnL(
+            axie_id=holding.axie_id,
+            acquired_at=holding.acquired_at.isoformat() if holding.acquired_at else None,
+            acquisition_type=holding.acquisition_type,
+            cost_basis_eth=float(holding.cost_basis_eth) if holding.cost_basis_eth else None,
+            current_value_eth=float(holding.current_value_eth) if holding.current_value_eth else None,
+            last_valued_at=holding.last_valued_at.isoformat() if holding.last_valued_at else None,
+            unrealized_pnl_eth=float(holding.unrealized_pnl_eth) if holding.unrealized_pnl_eth else None,
+            unrealized_pnl_percent=float(holding.unrealized_pnl_percent) if holding.unrealized_pnl_percent else None,
+            has_cost_basis=holding.has_cost_basis,
+        ))
+
+    # Sort
+    def sort_key(h):
+        if sort_by == "unrealized_pnl":
+            return h.unrealized_pnl_eth or 0
+        elif sort_by == "cost_basis":
+            return h.cost_basis_eth or 0
+        elif sort_by == "current_value":
+            return h.current_value_eth or 0
+        elif sort_by == "acquired_at":
+            return h.acquired_at or ""
+        return 0
+
+    reverse = sort_order == "desc"
+    holdings_data.sort(key=sort_key, reverse=reverse)
+
+    # Paginate
+    total = len(holdings_data)
+    offset = (page - 1) * per_page
+    holdings_data = holdings_data[offset:offset + per_page]
+
+    return {
+        "success": True,
+        "data": [h.model_dump() for h in holdings_data],
+        "meta": {
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
+        }
+    }
+
+
+@router.post("/{address}/portfolio/refresh")
+async def refresh_portfolio_valuations(
+    address: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Trigger refresh of portfolio valuations.
+
+    Updates current_value_eth for all holdings using the hedonic
+    valuation model. Runs in the background.
+    """
+    address = address.lower()
+
+    # Verify wallet exists
+    result = await db.execute(
+        select(Wallet).where(Wallet.address == address)
+    )
+    wallet = result.scalar_one_or_none()
+
+    if not wallet:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Wallet {address} not found"
+        )
+
+    async def refresh_task():
+        """Background task to refresh valuations."""
+        from src.services.valuation import HedonicValuationService
+
+        # Get holdings
+        holdings_result = await db.execute(
+            select(WalletHolding)
+            .where(WalletHolding.wallet_address == address)
+        )
+        holdings = holdings_result.scalars().all()
+
+        if not holdings:
+            return
+
+        # Get Axie IDs
+        axie_ids = [h.axie_id for h in holdings]
+
+        # Batch valuate
+        service = HedonicValuationService(db)
+        valuations = await service.batch_valuate(axie_ids)
+
+        # Update holdings with valuations
+        valuation_map = {v.axie_id: v for v in valuations}
+        now = datetime.utcnow()
+
+        for holding in holdings:
+            val = valuation_map.get(holding.axie_id)
+            if val and val.ensemble_value_eth:
+                holding.current_value_eth = val.ensemble_value_eth
+                holding.last_valued_at = now
+                holding.compute_unrealized_pnl()
+
+        await db.commit()
+
+    background_tasks.add_task(refresh_task)
+
+    return {
+        "success": True,
+        "message": "Portfolio valuation refresh started",
+        "wallet_address": address,
+    }
+
+
+@router.patch("/{address}/holdings/{axie_id}/cost-basis")
+async def update_holding_cost_basis(
+    address: str,
+    axie_id: int,
+    cost_basis_eth: float = Query(..., description="Cost basis in ETH"),
+    acquisition_type: Optional[str] = Query(
+        None, description="Acquisition type: purchase, breeding, gift, transfer"
+    ),
+    acquired_at: Optional[datetime] = Query(None, description="Acquisition date"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Manually update cost basis for a holding.
+
+    Use this for:
+    - Holdings acquired before tracking began
+    - Breeding offspring (set cost to parent+SLP cost)
+    - Gifts/airdrops (set cost to 0 or FMV at acquisition)
+    """
+    address = address.lower()
+
+    # Get holding
+    result = await db.execute(
+        select(WalletHolding)
+        .where(WalletHolding.wallet_address == address)
+        .where(WalletHolding.axie_id == axie_id)
+    )
+    holding = result.scalar_one_or_none()
+
+    if not holding:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Holding not found for wallet {address}, axie {axie_id}"
+        )
+
+    # Update fields
+    holding.cost_basis_eth = Decimal(str(cost_basis_eth))
+    if acquisition_type:
+        holding.acquisition_type = acquisition_type
+    if acquired_at:
+        holding.acquired_at = acquired_at
+
+    # Recompute P&L
+    holding.compute_unrealized_pnl()
+
+    await db.commit()
+    await db.refresh(holding)
+
+    return {
+        "success": True,
+        "data": {
+            "axie_id": holding.axie_id,
+            "cost_basis_eth": float(holding.cost_basis_eth) if holding.cost_basis_eth else None,
+            "acquisition_type": holding.acquisition_type,
+            "acquired_at": holding.acquired_at.isoformat() if holding.acquired_at else None,
+            "unrealized_pnl_eth": float(holding.unrealized_pnl_eth) if holding.unrealized_pnl_eth else None,
+            "unrealized_pnl_percent": float(holding.unrealized_pnl_percent) if holding.unrealized_pnl_percent else None,
+        },
+        "message": "Cost basis updated successfully",
     }

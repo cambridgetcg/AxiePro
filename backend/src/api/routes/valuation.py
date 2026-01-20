@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models import get_db
 from src.services.valuation import HedonicValuationService, ValuationResult
 from src.services.cache import get_cache_manager, RedisCacheManager
+from src.services.scoring import NormalizedDealScorer
 
 router = APIRouter(prefix="/valuation", tags=["valuation"])
 
@@ -263,13 +264,23 @@ async def get_live_deals(
     class_: Optional[str] = Query(None, alias="class", description="Filter by Axie class"),
     min_score: int = Query(50, ge=0, le=100, description="Minimum deal score"),
     limit: int = Query(20, ge=1, le=100),
+    include_normalized: bool = Query(True, description="Include normalized scoring"),
 ):
     """
-    Get current deal opportunities.
+    Get current deal opportunities with normalized scoring.
 
     Deals are listings priced significantly below their estimated fair value.
-    - **Deal** (score 50-79): 20-40% below FMV
-    - **Snipe** (score 80+): 40%+ below FMV
+
+    **Legacy Scoring (deal_score):**
+    - Deal (50-79): 20-40% below FMV
+    - Snipe (80+): 40%+ below FMV
+
+    **Normalized Scoring (normalized_score):**
+    - SNIPE (80-100): Exceptional, act immediately
+    - ELITE (60-79): High value, strong buy
+    - GOOD (40-59): Above average
+    - FAIR (20-39): Marginal
+    - PASS (0-19): Below threshold
 
     Results are sorted by deal score (best deals first).
     """
@@ -287,6 +298,22 @@ async def get_live_deals(
         min_score=min_score,
     )
 
+    # Add normalized scoring if requested
+    if include_normalized and deals:
+        scorer = NormalizedDealScorer()
+        for deal in deals:
+            score_result = scorer.score_deal(deal)
+            deal["normalized_score"] = score_result.normalized_score
+            deal["tier"] = score_result.tier.value
+            deal["tier_label"] = score_result.tier_label
+            deal["tier_color"] = score_result.tier_color
+            deal["score_components"] = {
+                "discount_percentile": round(score_result.discount_percentile, 3),
+                "confidence_percentile": round(score_result.confidence_percentile, 3),
+                "liquidity_score": round(score_result.liquidity_score, 3),
+                "time_score": round(score_result.time_score, 3),
+            }
+
     return {
         "success": True,
         "data": deals,
@@ -294,6 +321,7 @@ async def get_live_deals(
             "count": len(deals),
             "min_score": min_score,
             "class_filter": class_,
+            "scoring_version": "2.0" if include_normalized else "1.0",
             "timestamp": datetime.utcnow().isoformat(),
         }
     }
@@ -302,12 +330,17 @@ async def get_live_deals(
 @router.get("/deals/snipes", response_model=DealsListResponse)
 async def get_snipe_opportunities(
     limit: int = Query(20, ge=1, le=50),
+    include_normalized: bool = Query(True, description="Include normalized scoring"),
 ):
     """
-    Get top snipe opportunities (high-value deals).
+    Get top snipe opportunities (high-value deals) with normalized scoring.
 
     Snipes are extremely undervalued listings (40%+ below FMV)
     that represent the best buying opportunities.
+
+    **Tier System:**
+    - SNIPE tier deals have normalized_score 80-100
+    - Time-sensitive: score decays based on listing freshness
     """
     cache = await get_cache_manager()
 
@@ -319,11 +352,28 @@ async def get_snipe_opportunities(
 
     snipes = await cache.get_snipes(limit=limit)
 
+    # Add normalized scoring if requested
+    if include_normalized and snipes:
+        scorer = NormalizedDealScorer()
+        for snipe in snipes:
+            score_result = scorer.score_deal(snipe)
+            snipe["normalized_score"] = score_result.normalized_score
+            snipe["tier"] = score_result.tier.value
+            snipe["tier_label"] = score_result.tier_label
+            snipe["tier_color"] = score_result.tier_color
+            snipe["score_components"] = {
+                "discount_percentile": round(score_result.discount_percentile, 3),
+                "confidence_percentile": round(score_result.confidence_percentile, 3),
+                "liquidity_score": round(score_result.liquidity_score, 3),
+                "time_score": round(score_result.time_score, 3),
+            }
+
     return {
         "success": True,
         "data": snipes,
         "meta": {
             "count": len(snipes),
+            "scoring_version": "2.0" if include_normalized else "1.0",
             "timestamp": datetime.utcnow().isoformat(),
         }
     }

@@ -19,8 +19,9 @@ class Base(DeclarativeBase):
 # Create async engine
 settings = get_settings()
 
+# Get the database URL (handles IAM auth if configured)
+database_url = settings.get_database_url()
 # Convert postgresql:// to postgresql+asyncpg:// for async support
-database_url = settings.database_url
 if database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 

@@ -38,11 +38,14 @@ export const valuationApi = {
     class?: string;
     minScore?: number;
     limit?: number;
+    includeNormalized?: boolean;
   }): Promise<DealsListResponse> => {
     const searchParams = new URLSearchParams();
     if (params?.class) searchParams.set('class', params.class);
     if (params?.minScore !== undefined) searchParams.set('min_score', String(params.minScore));
     if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    // Default to including normalized scores for richer UI
+    searchParams.set('include_normalized', String(params?.includeNormalized ?? true));
     const query = searchParams.toString();
     return apiClient(`/valuation/deals/live${query ? `?${query}` : ''}`);
   },
@@ -51,8 +54,15 @@ export const valuationApi = {
    * Get top snipe opportunities (high-value deals).
    * GET /valuation/deals/snipes
    */
-  getSnipes: (limit = 20): Promise<DealsListResponse> =>
-    apiClient(`/valuation/deals/snipes?limit=${limit}`),
+  getSnipes: (params?: {
+    limit?: number;
+    includeNormalized?: boolean;
+  }): Promise<DealsListResponse> => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    searchParams.set('include_normalized', String(params?.includeNormalized ?? true));
+    return apiClient(`/valuation/deals/snipes?${searchParams.toString()}`);
+  },
 
   /**
    * Get price statistics for a specific trait.
