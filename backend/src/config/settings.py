@@ -63,7 +63,8 @@ class Settings(BaseSettings):
 
     # CORS - comma-separated list of allowed origins
     # In production, set to your frontend domain(s)
-    cors_origins: str = "*"  # e.g., "https://axiepro.vercel.app,https://axiepro.io"
+    # Default includes production domains for safety
+    cors_origins: str = "https://axiepro.io,https://www.axiepro.io,http://localhost:3000"
 
     # Database
     database_url: str = "postgresql://axie:axie_dev_password@localhost:5432/axie_explorer"
