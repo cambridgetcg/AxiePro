@@ -22,6 +22,9 @@ from src.services.auth import (
     create_jwt_token,
     SignatureVerificationError,
 )
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -91,6 +94,8 @@ async def create_challenge(
     settings = get_settings()
     address = request.address.lower()
 
+    logger.debug(f"Challenge requested for {address[:10]}...")
+
     # Clean up old expired challenges for this wallet
     await db.execute(
         delete(AuthChallenge).where(
@@ -107,6 +112,8 @@ async def create_challenge(
 
     db.add(challenge)
     await db.commit()
+
+    logger.info(f"Challenge created: {challenge.id[:8]}... for {address[:10]}...")
 
     return ChallengeResponse(
         challenge_id=challenge.id,
@@ -130,6 +137,8 @@ async def verify_challenge(
     A JWT token valid for 24 hours that can be used in the
     Authorization header as `Bearer <token>`.
     """
+    logger.debug(f"Verification attempt for challenge {request.challenge_id[:8]}...")
+
     # Get challenge
     result = await db.execute(
         select(AuthChallenge).where(AuthChallenge.id == request.challenge_id)
@@ -137,25 +146,35 @@ async def verify_challenge(
     challenge = result.scalar_one_or_none()
 
     if not challenge:
+        logger.warning(f"Challenge not found: {request.challenge_id[:8]}...")
         raise HTTPException(status_code=404, detail="Challenge not found")
 
     if challenge.used:
+        logger.warning(f"Challenge already used: {request.challenge_id[:8]}...")
         raise HTTPException(status_code=400, detail="Challenge already used")
 
     if challenge.is_expired:
+        logger.warning(f"Challenge expired: {request.challenge_id[:8]}...")
         raise HTTPException(status_code=400, detail="Challenge expired")
 
     # Verify signature
     try:
+        logger.debug("Verifying signature")
         recovered_address = verify_signature(
             message=challenge.message,
             signature=request.signature,
         )
+        logger.debug(f"Signature verified, recovered: {recovered_address[:10]}...")
     except SignatureVerificationError as e:
+        logger.warning(f"Signature verification failed: {e}")
         raise HTTPException(status_code=401, detail=str(e))
 
     # Check that recovered address matches challenge address
     if recovered_address.lower() != challenge.wallet_address:
+        logger.warning(
+            f"Address mismatch: recovered={recovered_address[:10]}..., "
+            f"expected={challenge.wallet_address[:10]}..."
+        )
         raise HTTPException(
             status_code=401,
             detail="Signature does not match the challenge wallet address",
@@ -167,6 +186,8 @@ async def verify_challenge(
 
     # Generate JWT token
     token, expires_at = create_jwt_token(challenge.wallet_address)
+
+    logger.info(f"Authentication successful for {challenge.wallet_address[:10]}...")
 
     return VerifyResponse(
         token=token,

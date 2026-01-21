@@ -3,6 +3,9 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('WalletStore');
 import {
   connectWallet as connectRonin,
   disconnectWallet as disconnectRonin,
@@ -80,10 +83,12 @@ export const useWalletStore = create<WalletStore>()(
       connect: async () => {
         if (get().isConnecting) return;
 
+        log.info('Connecting wallet...');
         set({ isConnecting: true, error: null });
 
         try {
           const address = await connectRonin();
+          log.info('Wallet connected', { address: `${address.slice(0, 10)}...` });
           set({
             address: address.toLowerCase(),
             isConnected: true,
@@ -105,6 +110,11 @@ export const useWalletStore = create<WalletStore>()(
             }
           });
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to connect wallet';
+          log.error('Connection failed', {
+            code: error instanceof WalletError ? error.code : 'UNKNOWN',
+            message: errorMessage,
+          });
           if (error instanceof WalletError) {
             set({
               error: { code: error.code, message: error.message },
@@ -114,7 +124,7 @@ export const useWalletStore = create<WalletStore>()(
             set({
               error: {
                 code: 'UNKNOWN',
-                message: error instanceof Error ? error.message : 'Failed to connect wallet',
+                message: errorMessage,
               },
               isConnecting: false,
             });
@@ -123,6 +133,7 @@ export const useWalletStore = create<WalletStore>()(
       },
 
       disconnect: () => {
+        log.info('Disconnecting wallet');
         disconnectRonin();
         set({
           address: null,
@@ -138,18 +149,25 @@ export const useWalletStore = create<WalletStore>()(
 
         if (!isConnected || !address || isAuthenticating) return;
 
+        log.info('Starting authentication...', { address: `${address.slice(0, 10)}...` });
         set({ isAuthenticating: true, error: null });
 
         try {
           // Step 1: Request challenge from server
+          log.debug('Requesting challenge');
           const challenge = await requestChallenge(address);
+          log.debug('Challenge received', { challengeId: challenge.challenge_id.slice(0, 8) });
 
           // Step 2: Sign the challenge message
+          log.debug('Signing challenge message');
           const signature = await signMessage(challenge.message);
+          log.debug('Message signed');
 
           // Step 3: Verify signature and get JWT token
+          log.debug('Verifying signature');
           const result = await verifySignature(challenge.challenge_id, signature);
 
+          log.info('Authentication successful');
           // Store the token and expiry
           set({
             authToken: result.token,
@@ -157,6 +175,11 @@ export const useWalletStore = create<WalletStore>()(
             isAuthenticating: false,
           });
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+          log.error('Authentication failed', {
+            code: error instanceof WalletError ? error.code : 'UNKNOWN',
+            message: errorMessage,
+          });
           if (error instanceof WalletError) {
             set({
               error: { code: error.code, message: error.message },
@@ -166,7 +189,7 @@ export const useWalletStore = create<WalletStore>()(
             set({
               error: {
                 code: 'UNKNOWN',
-                message: error instanceof Error ? error.message : 'Authentication failed',
+                message: errorMessage,
               },
               isAuthenticating: false,
             });

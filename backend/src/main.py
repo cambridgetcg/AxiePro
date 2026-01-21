@@ -11,31 +11,39 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import get_settings
 from src.models import init_db, close_db
 from src.api.routes import axies, market, breeding, wallets, valuation, auth
+from src.utils.logger import setup_logging, get_logger
+
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
+    # Configure logging first
+    setup_logging()
+
     # Startup
     settings = get_settings()
-    print(f"Starting {settings.app_name}...")
-    print(f"Network: {settings.ronin_network} (Chain ID: {settings.ronin_chain_id})")
+    logger.info(f"Starting {settings.app_name}...")
+    logger.info(f"Network: {settings.ronin_network} (Chain ID: {settings.ronin_chain_id})")
+    logger.debug(f"Environment: {settings.environment}")
+    logger.debug(f"CORS origins: {settings.cors_origins}")
 
     # Initialize database (creates tables if they don't exist)
     # This ensures auth_challenges and other tables exist
     # In production, consider using Alembic migrations for more control
     try:
         await init_db()
-        print("Database tables initialized.")
+        logger.info("Database tables initialized")
     except Exception as e:
-        print(f"Warning: Database initialization error: {e}")
+        logger.warning(f"Database initialization error: {e}")
         # Continue anyway - tables might already exist
 
     yield
 
     # Shutdown
     await close_db()
-    print("Shutdown complete.")
+    logger.info("Shutdown complete")
 
 
 # Create FastAPI app
