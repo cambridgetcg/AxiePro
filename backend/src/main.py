@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_settings
 from src.models import init_db, close_db
-from src.api.routes import axies, market, breeding, wallets, valuation, auth
+from src.api.routes import axies, market, breeding, wallets, valuation, auth, meta
 from src.utils.logger import setup_logging, get_logger
 
 logger = get_logger(__name__)
@@ -110,6 +110,7 @@ app.include_router(market.router, prefix="/api/v1")
 app.include_router(breeding.router, prefix="/api/v1")
 app.include_router(wallets.router, prefix="/api/v1")
 app.include_router(valuation.router, prefix="/api/v1")
+app.include_router(meta.router, prefix="/api/v1")
 
 
 # Root endpoint
