@@ -19,10 +19,17 @@ async def lifespan(app: FastAPI):
     # Startup
     settings = get_settings()
     print(f"Starting {settings.app_name}...")
+    print(f"Network: {settings.ronin_network} (Chain ID: {settings.ronin_chain_id})")
 
     # Initialize database (creates tables if they don't exist)
-    # In production, use Alembic migrations instead
-    # await init_db()
+    # This ensures auth_challenges and other tables exist
+    # In production, consider using Alembic migrations for more control
+    try:
+        await init_db()
+        print("Database tables initialized.")
+    except Exception as e:
+        print(f"Warning: Database initialization error: {e}")
+        # Continue anyway - tables might already exist
 
     yield
 

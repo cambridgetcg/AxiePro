@@ -3,7 +3,10 @@
  *
  * Uses @sky-mavis/tanto-connect for wallet connection.
  * Dynamic imports are used to avoid SSR issues.
+ * Supports both Ronin Mainnet and Saigon Testnet.
  */
+
+import { getCurrentNetwork, type NetworkConfig } from './network';
 
 export type WalletErrorCode =
   | 'NOT_INSTALLED'
@@ -206,5 +209,129 @@ export function onAccountChange(callback: (address: string | null) => void): () 
 
   return () => {
     ronin?.provider?.removeListener('accountsChanged', handler);
+  };
+}
+
+/**
+ * Get the current chain ID from the connected wallet.
+ *
+ * @returns Chain ID in decimal or null if not connected
+ */
+export async function getChainId(): Promise<number | null> {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const connector = await getConnector();
+    if (!connector.isConnected) return null;
+
+    const provider = connector.getProvider();
+    const chainIdHex = (await provider.request({ method: 'eth_chainId' })) as string;
+    return parseInt(chainIdHex, 16);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Switch to the expected network based on environment configuration.
+ *
+ * @returns True if already on correct network or switch successful
+ * @throws WalletError if switch fails
+ */
+export async function ensureCorrectNetwork(): Promise<boolean> {
+  const expectedNetwork = getCurrentNetwork();
+  const currentChainId = await getChainId();
+
+  if (currentChainId === expectedNetwork.chainId) {
+    return true;
+  }
+
+  try {
+    const connector = await getConnector();
+    const provider = connector.getProvider();
+
+    // Try to switch to the expected network
+    await provider.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: expectedNetwork.chainIdHex }],
+    });
+
+    return true;
+  } catch (error) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = error as any;
+
+    // If network not added, try to add it
+    if (err?.code === 4902) {
+      return addNetwork(expectedNetwork);
+    }
+
+    throw new WalletError(
+      'UNKNOWN',
+      `Failed to switch to ${expectedNetwork.name}: ${err?.message || 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Add a network to the wallet.
+ *
+ * @param network - Network configuration to add
+ * @returns True if successful
+ */
+async function addNetwork(network: NetworkConfig): Promise<boolean> {
+  try {
+    const connector = await getConnector();
+    const provider = connector.getProvider();
+
+    await provider.request({
+      method: 'wallet_addEthereumChain',
+      params: [
+        {
+          chainId: network.chainIdHex,
+          chainName: network.name,
+          rpcUrls: [network.rpcUrl],
+          blockExplorerUrls: [network.explorerUrl],
+          nativeCurrency: network.nativeCurrency,
+        },
+      ],
+    });
+
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new WalletError('UNKNOWN', `Failed to add network: ${errorMessage}`);
+  }
+}
+
+/**
+ * Subscribe to chain changes.
+ *
+ * @param callback - Called when chain changes with new chain ID
+ * @returns Unsubscribe function
+ */
+export function onChainChange(callback: (chainId: number) => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const ronin = (
+    window as unknown as {
+      ronin?: {
+        provider?: {
+          on: (event: string, cb: (chainIdHex: string) => void) => void;
+          removeListener: (event: string, cb: (chainIdHex: string) => void) => void;
+        };
+      };
+    }
+  ).ronin;
+  if (!ronin?.provider) return () => {};
+
+  const handler = (chainIdHex: string) => {
+    callback(parseInt(chainIdHex, 16));
+  };
+
+  ronin.provider.on('chainChanged', handler);
+
+  return () => {
+    ronin?.provider?.removeListener('chainChanged', handler);
   };
 }
