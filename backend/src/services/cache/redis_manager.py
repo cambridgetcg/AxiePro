@@ -535,7 +535,7 @@ async def get_cache_manager(
     Get or create the global cache manager instance.
 
     Args:
-        redis_url: Optional Redis URL (uses default if not provided)
+        redis_url: Optional Redis URL (uses settings/env if not provided)
 
     Returns:
         Connected RedisCacheManager instance
@@ -543,6 +543,10 @@ async def get_cache_manager(
     global _cache_manager
 
     if _cache_manager is None:
+        # If no URL provided, read from environment or use default
+        if redis_url is None:
+            import os
+            redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
         _cache_manager = RedisCacheManager(redis_url)
         await _cache_manager.connect()
 
