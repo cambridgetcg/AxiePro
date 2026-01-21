@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 
 from src.models import Wallet, WalletHolding, Axie, Sale, get_db
 from src.services.moralis_client import MoralisClient
+from src.api.deps import get_authenticated_wallet
 
 router = APIRouter(prefix="/wallets", tags=["wallets"])
 
@@ -530,10 +531,14 @@ async def update_holding_cost_basis(
         None, description="Acquisition type: purchase, breeding, gift, transfer"
     ),
     acquired_at: Optional[datetime] = Query(None, description="Acquisition date"),
+    authenticated_wallet: str = Depends(get_authenticated_wallet),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Manually update cost basis for a holding.
+
+    **Requires authentication**: Must sign a challenge with your wallet.
+    You can only update cost basis for your own wallet.
 
     Use this for:
     - Holdings acquired before tracking began
@@ -541,6 +546,13 @@ async def update_holding_cost_basis(
     - Gifts/airdrops (set cost to 0 or FMV at acquisition)
     """
     address = address.lower()
+
+    # Verify the authenticated wallet matches the target address
+    if authenticated_wallet != address:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only update cost basis for your own wallet",
+        )
 
     # Get holding
     result = await db.execute(

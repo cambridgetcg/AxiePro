@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import {
   Search,
   AlertCircle,
   Info,
+  Shield,
 } from 'lucide-react';
 import {
   PortfolioSummaryCard,
@@ -22,6 +23,7 @@ import {
   useRefreshPortfolio,
   useUpdateCostBasis,
 } from '@/hooks/use-portfolio';
+import { useWalletStore } from '@/stores/wallet-store';
 import { cn } from '@/lib/utils';
 import { isAddress } from 'viem';
 import type { AcquisitionType } from '@/types/portfolio';
@@ -30,6 +32,36 @@ export default function PortfolioPage() {
   const [walletInput, setWalletInput] = useState('');
   const [activeWallet, setActiveWallet] = useState<string | null>(null);
   const [inputError, setInputError] = useState<string | null>(null);
+
+  // Wallet store for auto-fill and authentication
+  const {
+    address: connectedAddress,
+    isConnected,
+    authToken,
+    isAuthenticated,
+    isOwnWallet,
+    authenticate,
+    isAuthenticating,
+  } = useWalletStore();
+
+  // Auto-fill and auto-load when wallet is connected
+  useEffect(() => {
+    if (connectedAddress && !activeWallet) {
+      setWalletInput(connectedAddress);
+      setActiveWallet(connectedAddress);
+    }
+  }, [connectedAddress, activeWallet]);
+
+  // Determine edit permissions
+  const canEdit = activeWallet ? isOwnWallet(activeWallet) : false;
+  const needsAuth = activeWallet && isConnected && connectedAddress?.toLowerCase() === activeWallet.toLowerCase() && !isAuthenticated();
+  const editDisabledReason = !isConnected
+    ? 'Connect your wallet to edit'
+    : activeWallet && connectedAddress?.toLowerCase() !== activeWallet.toLowerCase()
+    ? 'You can only edit your own wallet'
+    : !isAuthenticated()
+    ? 'Sign in to edit cost basis'
+    : undefined;
 
   // Fetch portfolio data
   const {
@@ -81,12 +113,13 @@ export default function PortfolioPage() {
     costBasisEth: number,
     acquisitionType?: AcquisitionType
   ) => {
-    if (activeWallet) {
+    if (activeWallet && authToken) {
       updateCostBasisMutation.mutate({
         address: activeWallet,
         axieId,
         costBasisEth,
         acquisitionType,
+        authToken,
       });
     }
   };
@@ -186,13 +219,13 @@ export default function PortfolioPage() {
           <>
             {/* Summary */}
             <PortfolioSummaryCard
-              summary={summaryData?.summary}
+              summary={summaryData?.data}
               isLoading={summaryLoading}
             />
 
             {/* Cost Basis Warning */}
-            {summaryData?.summary &&
-              holdingsData?.holdings?.some((h) => !h.has_cost_basis) && (
+            {summaryData?.data &&
+              holdingsData?.data?.some((h) => !h.has_cost_basis) && (
                 <Alert className="border-yellow-500/50 bg-yellow-500/5">
                   <AlertCircle className="h-4 w-4 text-yellow-600" />
                   <AlertTitle className="text-yellow-600">
@@ -206,23 +239,48 @@ export default function PortfolioPage() {
                 </Alert>
               )}
 
+            {/* Authentication Prompt */}
+            {needsAuth && (
+              <Alert className="border-primary/50 bg-primary/5">
+                <Shield className="h-4 w-4 text-primary" />
+                <AlertTitle className="text-primary">
+                  Sign to Edit Cost Basis
+                </AlertTitle>
+                <AlertDescription className="flex items-center justify-between">
+                  <span>
+                    Sign a message with your wallet to authenticate and enable cost basis editing.
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={authenticate}
+                    disabled={isAuthenticating}
+                    className="ml-4"
+                  >
+                    {isAuthenticating ? 'Signing...' : 'Sign to Authenticate'}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Holdings Table */}
             <HoldingsTable
-              holdings={holdingsData?.holdings}
+              holdings={holdingsData?.data}
               isLoading={holdingsLoading}
               onUpdateCostBasis={handleUpdateCostBasis}
+              canEdit={canEdit}
+              editDisabledReason={editDisabledReason}
             />
 
             {/* Pagination Info */}
-            {holdingsData?.pagination && (
+            {holdingsData?.meta && (
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>
-                  Showing {holdingsData.holdings.length} of{' '}
-                  {holdingsData.pagination.total} holdings
+                  Showing {holdingsData.data.length} of{' '}
+                  {holdingsData.meta.total} holdings
                 </span>
                 <Badge variant="outline">
-                  Page {holdingsData.pagination.page} of{' '}
-                  {holdingsData.pagination.total_pages}
+                  Page {holdingsData.meta.page} of{' '}
+                  {holdingsData.meta.total_pages}
                 </Badge>
               </div>
             )}

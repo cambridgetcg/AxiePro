@@ -62,10 +62,10 @@ export default function MetaPage() {
     return shifts?.filter((s) => s.confidence >= minConfidence) || [];
   };
 
-  const risingShifts = filterByConfidence(risingData?.shifts);
-  const fallingShifts = filterByConfidence(fallingData?.shifts);
-  const emergingShifts = filterByConfidence(emergingData?.shifts);
-  const fadingShifts = filterByConfidence(fadingData?.shifts);
+  const risingShifts = filterByConfidence(risingData?.data);
+  const fallingShifts = filterByConfidence(fallingData?.data);
+  const emergingShifts = filterByConfidence(emergingData?.data);
+  const fadingShifts = filterByConfidence(fadingData?.data);
 
   const allShifts = [...risingShifts, ...fallingShifts, ...emergingShifts, ...fadingShifts]
     .sort((a, b) => b.confidence - a.confidence);
@@ -120,7 +120,7 @@ export default function MetaPage() {
         </div>
 
         {/* Summary Overview */}
-        <MetaSummaryCard summary={summaryData?.summary} isLoading={summaryLoading} />
+        <MetaSummaryCard summary={summaryData?.data} isLoading={summaryLoading} />
 
         {/* Confidence Filter */}
         <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">

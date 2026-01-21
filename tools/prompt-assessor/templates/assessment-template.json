@@ -1,0 +1,94 @@
+{
+  "metadata": {
+    "prompt_id": "PROMPT-001",
+    "date": "YYYY-MM-DD",
+    "codebase": "project-name",
+    "category": "discovery|tracing|analysis|alignment|diagnostic|comparative",
+    "assessor": "Claude Code",
+    "execution_time_minutes": 0.0,
+    "tokens_used": 0,
+    "agent_type": "Explore",
+    "version": "1.0.0"
+  },
+  "prompt_text": "Your prompt text here...",
+  "ratings": {
+    "comprehension_depth": {
+      "code": "CD",
+      "name": "Comprehension Depth",
+      "score": 0.0,
+      "weight": 0.15,
+      "evidence": ""
+    },
+    "coverage_breadth": {
+      "code": "CB",
+      "name": "Coverage Breadth",
+      "score": 0.0,
+      "weight": 0.12,
+      "evidence": ""
+    },
+    "accuracy": {
+      "code": "AC",
+      "name": "Accuracy",
+      "score": 0.0,
+      "weight": 0.15,
+      "evidence": ""
+    },
+    "actionability": {
+      "code": "AT",
+      "name": "Actionability",
+      "score": 0.0,
+      "weight": 0.12,
+      "evidence": ""
+    },
+    "bridging_capability": {
+      "code": "BC",
+      "name": "Bridging Capability",
+      "score": 0.0,
+      "weight": 0.10,
+      "evidence": ""
+    },
+    "domain_alignment": {
+      "code": "DA",
+      "name": "Domain Alignment",
+      "score": 0.0,
+      "weight": 0.10,
+      "evidence": ""
+    },
+    "clarity_structure": {
+      "code": "CS",
+      "name": "Clarity & Structure",
+      "score": 0.0,
+      "weight": 0.08,
+      "evidence": ""
+    },
+    "efficiency": {
+      "code": "EF",
+      "name": "Efficiency",
+      "score": 0.0,
+      "weight": 0.08,
+      "evidence": ""
+    },
+    "gap_detection": {
+      "code": "GD",
+      "name": "Gap Detection",
+      "score": 0.0,
+      "weight": 0.05,
+      "evidence": ""
+    },
+    "reproducibility": {
+      "code": "RP",
+      "name": "Reproducibility",
+      "score": 0.0,
+      "weight": 0.05,
+      "evidence": ""
+    }
+  },
+  "execution_summary": {
+    "files_examined": [],
+    "tools_used": [],
+    "errors": []
+  },
+  "strengths": [],
+  "weaknesses": [],
+  "recommendations": []
+}

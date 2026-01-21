@@ -48,7 +48,7 @@ export function useDeals(filters?: { class?: AxieClass; minScore?: number }) {
 export function useSnipes(limit = 20) {
   return useQuery<DealsListResponse>({
     queryKey: dealsKeys.snipes(),
-    queryFn: () => valuationApi.getSnipes(limit),
+    queryFn: () => valuationApi.getSnipes({ limit }),
     refetchInterval: config.dealsPollingInterval,
     refetchIntervalInBackground: false,
   });

@@ -1,0 +1,193 @@
+# Prompt Effectiveness Assessment Attributes
+# Version: 1.0.0
+# Framework for evaluating codebase exploration prompts
+
+metadata:
+  version: "1.0.0"
+  created: "2025-01-20"
+  description: "Standardized attributes for prompt effectiveness assessment"
+
+# Grade thresholds
+grades:
+  A:  { min: 4.5, max: 5.0, label: "Excellent" }
+  A-: { min: 4.0, max: 4.49, label: "Very Good" }
+  B+: { min: 3.5, max: 3.99, label: "Good" }
+  B:  { min: 3.0, max: 3.49, label: "Adequate" }
+  C+: { min: 2.5, max: 2.99, label: "Below Average" }
+  C:  { min: 2.0, max: 2.49, label: "Poor" }
+  F:  { min: 0.0, max: 1.99, label: "Ineffective" }
+
+# The 10 assessment attributes
+attributes:
+  comprehension_depth:
+    code: "CD"
+    name: "Comprehension Depth"
+    weight: 0.15
+    description: "How deeply the prompt penetrates understanding of the code"
+    rubric:
+      5: "Reveals non-obvious insights, architectural rationale, edge cases, implicit assumptions"
+      4: "Understands component interactions, design patterns, and trade-offs"
+      3: "Grasps what code does and how pieces connect"
+      2: "Surface-level understanding of files and functions"
+      1: "Only describes obvious structure without relationships"
+    evidence_markers:
+      high: "Explains WHY code is structured this way"
+      medium: "Describes WHAT code does"
+      low: "Lists files without understanding"
+
+  coverage_breadth:
+    code: "CB"
+    name: "Coverage Breadth"
+    weight: 0.12
+    description: "How much of the relevant codebase is explored"
+    rubric:
+      5: "All relevant files, cross-module dependencies, config, tests, infrastructure"
+      4: "Primary modules and most dependencies covered"
+      3: "Main components relevant to query examined"
+      2: "Only obvious files examined"
+      1: "1-2 files without exploring connections"
+    measurement: "coverage_percent = (files_examined / relevant_files) * 100"
+
+  accuracy:
+    code: "AC"
+    name: "Accuracy"
+    weight: 0.15
+    description: "Correctness of claims and findings"
+    rubric:
+      5: "All claims verifiable, no hallucinations, precise technical details"
+      4: "Minor inaccuracies that don't affect conclusions (95%+ correct)"
+      3: "Some inaccuracies but core understanding sound (85-95%)"
+      2: "Significant errors mixed with correct info (70-85%)"
+      1: "Major hallucinations or misunderstandings (<70%)"
+    validation_process:
+      - "Locate referenced file/line"
+      - "Verify claim matches actual code"
+      - "Check for omitted context"
+      - "Confirm technical terminology"
+
+  actionability:
+    code: "AT"
+    name: "Actionability"
+    weight: 0.12
+    description: "Whether insights lead to concrete actions"
+    rubric:
+      5: "Specific steps, file paths, code changes, commands provided"
+      4: "Clear what needs to be done with enough detail to plan"
+      3: "Points toward areas needing work but requires more investigation"
+      2: "General suggestions without specific guidance"
+      1: "Descriptive only, no clear path to action"
+    evidence_markers:
+      high: "Fix line 23: replace X with Y"
+      medium: "The caching layer needs optimization"
+      low: "The system has some complexity"
+
+  bridging_capability:
+    code: "BC"
+    name: "Bridging Capability"
+    weight: 0.10
+    description: "Ability to connect different parts of the system"
+    rubric:
+      5: "Maps complete data/control flow across all layers"
+      4: "Identifies dependencies between modules and change propagation"
+      3: "Connects immediately related components"
+      2: "Understands components but not how they fit together"
+      1: "Each component analyzed in isolation"
+    assessment_questions:
+      - "Does it trace data from source to destination?"
+      - "Does it identify shared interfaces/contracts?"
+      - "Does it explain how change in A affects B, C, D?"
+
+  domain_alignment:
+    code: "DA"
+    name: "Domain Alignment"
+    weight: 0.10
+    description: "Relevance to application's core purpose"
+    rubric:
+      5: "Every insight relates to app's mission, uses domain language, identifies purpose-specific gaps"
+      4: "Understands domain and frames findings in business context"
+      3: "Technical accuracy but limited connection to why it matters"
+      2: "Generic analysis that could apply to any codebase"
+      1: "Focuses on aspects unrelated to application purpose"
+    domain_checklist:
+      - "Uses correct domain terminology"
+      - "Evaluates features against domain requirements"
+      - "Identifies domain-specific gaps"
+
+  clarity_structure:
+    code: "CS"
+    name: "Clarity & Structure"
+    weight: 0.08
+    description: "Organization and readability of output"
+    rubric:
+      5: "Logical hierarchy, consistent formatting, tables, easy to scan and deep-dive"
+      4: "Clear structure with minor inconsistencies"
+      3: "Has structure but could be better organized"
+      2: "Information present but scattered"
+      1: "Stream of consciousness, no clear structure"
+    structural_elements:
+      - "Headings and hierarchy"
+      - "Tables for comparative data"
+      - "Code blocks for technical details"
+      - "Summary sections"
+
+  efficiency:
+    code: "EF"
+    name: "Efficiency"
+    weight: 0.08
+    description: "Value gained relative to resources spent"
+    rubric:
+      5: "Maximum insight with minimal tokens/time, no redundancy"
+      4: "Good value-to-cost ratio, minor redundancy"
+      3: "Reasonable efficiency, some wasted effort"
+      2: "Significant resources on low-value exploration"
+      1: "Excessive tokens/time for minimal insight"
+    formula: "efficiency = (insight_value * 20) / (tokens_used / 1000)"
+    benchmarks:
+      excellent: "< 1500 tokens per score point"
+      good: "1500-2000 tokens per score point"
+      adequate: "2000-2500 tokens per score point"
+      poor: "> 2500 tokens per score point"
+
+  gap_detection:
+    code: "GD"
+    name: "Gap Detection"
+    weight: 0.05
+    description: "Ability to identify what's missing or incomplete"
+    rubric:
+      5: "Systematically identifies missing features, tech debt, security gaps proactively"
+      4: "Identifies significant gaps and explains their impact"
+      3: "Mentions obvious gaps but may miss subtle ones"
+      2: "Only identifies gaps when explicitly present (TODOs, empty functions)"
+      1: "Does not identify any missing elements"
+    gap_categories:
+      - "Missing features vs domain requirements"
+      - "Missing error handling"
+      - "Missing tests"
+      - "Missing security controls"
+      - "Technical debt markers"
+
+  reproducibility:
+    code: "RP"
+    name: "Reproducibility"
+    weight: 0.05
+    description: "Consistency across multiple executions"
+    rubric:
+      5: "Same prompt yields same core insights every time"
+      4: "Core findings consistent with some variation in depth"
+      3: "Main conclusions similar but significant variation in details"
+      2: "Different runs yield different conclusions"
+      1: "Results vary wildly between executions"
+    testing_method:
+      - "Execute same prompt 3 times"
+      - "Compare core findings (should match)"
+      - "Compare file coverage (should be similar)"
+      - "Calculate consistency score"
+
+# Prompt categories
+categories:
+  - discovery: "What exists in the codebase?"
+  - tracing: "How does X flow to Y?"
+  - analysis: "What patterns or issues exist?"
+  - alignment: "Does X match purpose Y?"
+  - diagnostic: "Why is X failing?"
+  - comparative: "How does X differ from Y?"
