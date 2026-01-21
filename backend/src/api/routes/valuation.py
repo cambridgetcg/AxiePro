@@ -430,37 +430,58 @@ async def get_floor_prices(
 
     Returns the lowest listed price for each Axie class.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     cache = await get_cache_manager()
 
     # Try cache first
     if cache.is_connected:
-        floors = await cache.get_all_floor_prices()
-        if floors:
-            return {
-                "success": True,
-                "data": floors,
-                "meta": {"source": "cache"}
-            }
+        try:
+            floors = await cache.get_all_floor_prices()
+            if floors:
+                return {
+                    "success": True,
+                    "data": floors,
+                    "meta": {"source": "cache"}
+                }
+        except Exception as e:
+            logger.warning(f"Cache read failed for floor prices: {e}")
 
     # Compute floor prices
-    service = HedonicValuationService(db)
-    stats = await service.compute_trait_statistics(time_window_hours=24)
+    try:
+        service = HedonicValuationService(db)
+        stats = await service.compute_trait_statistics(time_window_hours=24)
 
-    floors = {}
-    for key, stat in stats.items():
-        if key.startswith("class:"):
-            class_name = key.split(":")[1]
-            if stat.min_price_eth:
-                floors[class_name] = float(stat.min_price_eth)
-                # Cache individual floors
-                if cache.is_connected:
-                    await cache.set_floor_price(class_name, float(stat.min_price_eth))
+        floors = {}
+        for key, stat in stats.items():
+            if key.startswith("class:"):
+                class_name = key.split(":")[1]
+                if stat.min_price_eth:
+                    floors[class_name] = float(stat.min_price_eth)
+                    # Cache individual floors
+                    if cache.is_connected:
+                        try:
+                            await cache.set_floor_price(class_name, float(stat.min_price_eth))
+                        except Exception as cache_error:
+                            logger.warning(f"Failed to cache floor price for {class_name}: {cache_error}")
 
-    return {
-        "success": True,
-        "data": floors,
-        "meta": {"source": "computed"}
-    }
+        return {
+            "success": True,
+            "data": floors,
+            "meta": {"source": "computed"}
+        }
+    except Exception as e:
+        logger.error(f"Failed to compute floor prices: {e}")
+        # Return empty data gracefully instead of 500 error
+        return {
+            "success": True,
+            "data": {},
+            "meta": {
+                "source": "none",
+                "message": "Floor price data not available. Market data collection may be pending."
+            }
+        }
 
 
 @router.get("/model/info")
