@@ -6,7 +6,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-postgres",
-        "postgresql://localhost:5432/axiepro_db"
+        "postgresql://axie:axie_dev_password@localhost:5432/axie_explorer"
       ],
       "env": {}
     },
@@ -91,16 +91,6 @@
         "-y",
         "@modelcontextprotocol/server-memory"
       ]
-    },
-    "git": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-git",
-        "/Users/yu/Desktop/AxiePro"
-      ],
-      "env": {}
     },
     "playwright": {
       "command": "npx",
