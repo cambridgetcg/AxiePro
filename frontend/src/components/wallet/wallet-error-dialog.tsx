@@ -1,7 +1,15 @@
 "use client";
 
-import { AlertCircle, ExternalLink, X } from "lucide-react";
+import { AlertCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { WalletErrorCode } from "@/lib/wallet/ronin-connector";
 
 interface WalletErrorDialogProps {
@@ -45,53 +53,43 @@ const errorConfig: Record<
 
 /**
  * Error dialog for wallet connection issues.
+ * Uses Radix Dialog with Portal for proper z-index and stacking context handling.
  */
 export function WalletErrorDialog({ error, onClose }: WalletErrorDialogProps) {
-  if (!error) return null;
-
-  const config = errorConfig[error.code];
+  const isOpen = error !== null;
+  const config = error ? errorConfig[error.code] : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-
-      {/* Dialog */}
-      <div className="relative bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 p-6">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
-        >
-          <X className="h-4 w-4" />
-        </button>
-
-        {/* Content */}
-        <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 p-2 bg-red-100 dark:bg-red-900/20 rounded-full">
-            <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 p-2 bg-red-100 dark:bg-red-900/20 rounded-full">
+              <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="flex-1 min-w-0 pt-1">
+              <DialogTitle>{config?.title || "Error"}</DialogTitle>
+              <DialogDescription className="mt-1.5">
+                {error?.message || "An unknown error occurred."}
+              </DialogDescription>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold">{config.title}</h3>
-            <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
-          </div>
-        </div>
+        </DialogHeader>
 
-        {/* Actions */}
-        <div className="flex gap-2 mt-6 justify-end">
+        <DialogFooter className="mt-2">
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          {config.action && (
+          {config?.action && (
             <Button onClick={config.action.onClick}>
               {config.action.label}
-              {error.code === "NOT_INSTALLED" && (
+              {error?.code === "NOT_INSTALLED" && (
                 <ExternalLink className="h-4 w-4 ml-2" />
               )}
             </Button>
           )}
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
