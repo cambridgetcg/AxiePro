@@ -7,6 +7,9 @@
  */
 
 import { getCurrentNetwork, type NetworkConfig } from './network';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('RoninConnector');
 
 export type WalletErrorCode =
   | 'NOT_INSTALLED'
@@ -65,7 +68,9 @@ async function getConnector() {
  * @throws WalletError if connection fails
  */
 export async function connectWallet(): Promise<string> {
+  log.debug('Checking wallet installation');
   if (!isRoninWalletInstalled()) {
+    log.warn('Wallet not installed');
     throw new WalletError(
       'NOT_INSTALLED',
       'Ronin Wallet extension not found. Please install it from https://wallet.roninchain.com/'
@@ -73,13 +78,17 @@ export async function connectWallet(): Promise<string> {
   }
 
   try {
+    log.debug('Getting connector');
     const connector = await getConnector();
+    log.debug('Requesting connection');
     const accounts = await connector.connect();
 
     if (!accounts || accounts.length === 0) {
+      log.warn('No accounts returned');
       throw new WalletError('CONNECTION_REJECTED', 'No accounts returned from wallet');
     }
 
+    log.info('Connected', { address: `${accounts[0].slice(0, 10)}...` });
     return accounts[0];
   } catch (error) {
     if (error instanceof WalletError) throw error;
@@ -91,9 +100,11 @@ export async function connectWallet(): Promise<string> {
       errorMessage.includes('denied') ||
       errorMessage.includes('cancelled')
     ) {
+      log.debug('Connection rejected by user');
       throw new WalletError('CONNECTION_REJECTED', 'Connection request was rejected');
     }
 
+    log.error('Connection failed', { error: errorMessage });
     throw new WalletError('UNKNOWN', `Failed to connect wallet: ${errorMessage}`);
   }
 }
@@ -120,9 +131,11 @@ export async function disconnectWallet(): Promise<void> {
  * @throws WalletError if signing fails
  */
 export async function signMessage(message: string): Promise<string> {
+  log.debug('Signing message', { length: message.length });
   const connector = await getConnector();
 
   if (!connector.isConnected) {
+    log.warn('Wallet not connected');
     throw new WalletError('DISCONNECTED', 'Wallet is not connected');
   }
 
@@ -132,10 +145,12 @@ export async function signMessage(message: string): Promise<string> {
     const accounts = (await provider.request({ method: 'eth_accounts' })) as string[];
 
     if (!accounts || accounts.length === 0) {
+      log.warn('No accounts available');
       throw new WalletError('DISCONNECTED', 'No accounts available');
     }
 
     const account = accounts[0];
+    log.debug('Requesting signature', { account: `${account.slice(0, 10)}...` });
 
     // Use personal_sign for EIP-191 message signing
     const signature = await provider.request({
@@ -143,6 +158,7 @@ export async function signMessage(message: string): Promise<string> {
       params: [message, account],
     });
 
+    log.debug('Message signed successfully');
     return signature as string;
   } catch (error) {
     if (error instanceof WalletError) throw error;
@@ -153,9 +169,11 @@ export async function signMessage(message: string): Promise<string> {
       errorMessage.includes('denied') ||
       errorMessage.includes('cancelled')
     ) {
+      log.debug('Signature rejected by user');
       throw new WalletError('SIGNATURE_REJECTED', 'Signature request was rejected');
     }
 
+    log.error('Signing failed', { error: errorMessage });
     throw new WalletError('UNKNOWN', `Failed to sign message: ${errorMessage}`);
   }
 }
@@ -242,11 +260,18 @@ export async function ensureCorrectNetwork(): Promise<boolean> {
   const expectedNetwork = getCurrentNetwork();
   const currentChainId = await getChainId();
 
+  log.debug('Checking network', {
+    expected: expectedNetwork.chainId,
+    current: currentChainId,
+  });
+
   if (currentChainId === expectedNetwork.chainId) {
+    log.debug('Already on correct network');
     return true;
   }
 
   try {
+    log.info('Switching network', { to: expectedNetwork.name });
     const connector = await getConnector();
     const provider = connector.getProvider();
 
@@ -256,6 +281,7 @@ export async function ensureCorrectNetwork(): Promise<boolean> {
       params: [{ chainId: expectedNetwork.chainIdHex }],
     });
 
+    log.info('Network switched', { network: expectedNetwork.name });
     return true;
   } catch (error) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -263,9 +289,11 @@ export async function ensureCorrectNetwork(): Promise<boolean> {
 
     // If network not added, try to add it
     if (err?.code === 4902) {
+      log.debug('Network not found, adding it');
       return addNetwork(expectedNetwork);
     }
 
+    log.error('Network switch failed', { error: err?.message });
     throw new WalletError(
       'UNKNOWN',
       `Failed to switch to ${expectedNetwork.name}: ${err?.message || 'Unknown error'}`

@@ -2,6 +2,9 @@
  * Base API client with error handling.
  */
 import { config } from '@/lib/config';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('ApiClient');
 
 /**
  * Custom error class for API errors.
@@ -44,6 +47,7 @@ export async function apiClient<T>(
   options?: ApiClientOptions
 ): Promise<T> {
   const url = `${config.apiBaseUrl}/api/${config.apiVersion}${endpoint}`;
+  const method = options?.method || 'GET';
 
   const { authToken, ...fetchOptions } = options || {};
 
@@ -57,20 +61,37 @@ export async function apiClient<T>(
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
-  const response = await fetch(url, {
-    ...fetchOptions,
-    headers,
-  });
+  log.debug('Request', { method, endpoint, hasAuth: !!authToken });
 
-  if (!response.ok) {
-    let errorData: unknown;
-    try {
-      errorData = await response.json();
-    } catch {
-      // Response body is not JSON
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers,
+    });
+
+    if (!response.ok) {
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        // Response body is not JSON
+      }
+      log.error('Response error', {
+        method,
+        endpoint,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      throw new ApiError(response.status, response.statusText, errorData);
     }
-    throw new ApiError(response.status, response.statusText, errorData);
-  }
 
-  return response.json();
+    log.debug('Response success', { method, endpoint, status: response.status });
+    return response.json();
+  } catch (error) {
+    // Log network errors (not ApiErrors, those are already logged)
+    if (!(error instanceof ApiError)) {
+      log.error('Network error', { method, endpoint, error: String(error) });
+    }
+    throw error;
+  }
 }
