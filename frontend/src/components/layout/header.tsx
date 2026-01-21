@@ -6,13 +6,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { WalletButton } from "@/components/wallet";
 import {
   Search,
   Menu,
   TrendingUp,
   BarChart3,
   Dna,
-  Wallet,
   Home,
   Target,
   Sparkles,
@@ -68,10 +68,7 @@ export function Header() {
 
         {/* Right side actions */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="hidden sm:flex gap-2">
-            <Wallet className="h-4 w-4" />
-            Connect Wallet
-          </Button>
+          <WalletButton className="hidden sm:flex gap-2" />
 
           {/* Mobile menu */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -110,10 +107,7 @@ export function Header() {
                   </Link>
                 ))}
                 <div className="border-t pt-4 mt-4">
-                  <Button variant="outline" className="w-full gap-2">
-                    <Wallet className="h-4 w-4" />
-                    Connect Wallet
-                  </Button>
+                  <WalletButton className="w-full gap-2" />
                 </div>
               </div>
             </SheetContent>

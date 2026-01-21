@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_settings
 from src.models import init_db, close_db
-from src.api.routes import axies, market, breeding, wallets, valuation
+from src.api.routes import axies, market, breeding, wallets, valuation, auth
 
 
 @asynccontextmanager
@@ -53,7 +53,12 @@ app = FastAPI(
 
     Most endpoints are public. Rate limiting applies:
     * Anonymous: 100 requests/minute
-    * Future: API key authentication for higher limits
+
+    **Wallet Authentication** (for write operations):
+    1. POST `/api/v1/auth/challenge` - Get a challenge message
+    2. Sign the message with your Ronin wallet
+    3. POST `/api/v1/auth/verify` - Submit signature to get JWT token
+    4. Use token in Authorization header: `Bearer <token>`
     """,
     version="0.1.0",
     lifespan=lifespan,
@@ -84,6 +89,7 @@ async def health_check():
 
 
 # Include routers
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(axies.router, prefix="/api/v1")
 app.include_router(market.router, prefix="/api/v1")
 app.include_router(breeding.router, prefix="/api/v1")

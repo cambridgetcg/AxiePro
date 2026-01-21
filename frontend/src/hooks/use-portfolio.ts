@@ -98,6 +98,8 @@ export function useRefreshPortfolio() {
 /**
  * Hook to update cost basis for a holding.
  *
+ * Requires authentication - the auth token must be for the same wallet.
+ *
  * @returns Mutation for updating cost basis
  */
 export function useUpdateCostBasis() {
@@ -110,18 +112,25 @@ export function useUpdateCostBasis() {
       costBasisEth,
       acquisitionType,
       acquiredAt,
+      authToken,
     }: {
       address: string;
       axieId: number;
       costBasisEth: number;
       acquisitionType?: AcquisitionType;
       acquiredAt?: string;
+      authToken: string;
     }) =>
-      portfolioApi.updateCostBasis(address, axieId, {
-        costBasisEth,
-        acquisitionType,
-        acquiredAt,
-      }),
+      portfolioApi.updateCostBasis(
+        address,
+        axieId,
+        {
+          costBasisEth,
+          acquisitionType,
+          acquiredAt,
+        },
+        authToken
+      ),
     onSuccess: (_, variables) => {
       // Invalidate portfolio queries
       queryClient.invalidateQueries({

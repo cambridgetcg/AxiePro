@@ -5,6 +5,7 @@ from .axie import Axie, Part, AxiePart, Ability, AxieClass, PartType, GeneType
 from .market import Listing, Sale, PriceHistory
 from .wallet import Wallet, WalletHolding
 from .breeding import BreedingPair, Breed
+from .auth import AuthChallenge
 
 __all__ = [
     # Database
@@ -29,6 +30,8 @@ __all__ = [
     # Breeding models
     "BreedingPair",
     "Breed",
+    # Auth models
+    "AuthChallenge",
     # Enums
     "AxieClass",
     "PartType",

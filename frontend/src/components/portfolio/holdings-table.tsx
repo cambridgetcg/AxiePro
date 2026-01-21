@@ -42,11 +42,12 @@ import {
   ExternalLink,
   AlertCircle,
   ArrowUpDown,
+  Lock,
 } from 'lucide-react';
-import type { HoldingWithPnL, AcquisitionType } from '@/types/portfolio';
+import type { HoldingPnL, AcquisitionType } from '@/types/portfolio';
 
 interface HoldingsTableProps {
-  holdings: HoldingWithPnL[] | undefined;
+  holdings: HoldingPnL[] | undefined;
   isLoading?: boolean;
   onUpdateCostBasis?: (
     axieId: number,
@@ -54,6 +55,14 @@ interface HoldingsTableProps {
     acquisitionType?: AcquisitionType,
     acquiredAt?: string
   ) => void;
+  /**
+   * Whether the user can edit cost basis (must be own wallet and authenticated).
+   */
+  canEdit?: boolean;
+  /**
+   * Message to show when edit is not allowed.
+   */
+  editDisabledReason?: string;
   className?: string;
 }
 
@@ -64,6 +73,8 @@ export function HoldingsTable({
   holdings,
   isLoading,
   onUpdateCostBasis,
+  canEdit = true,
+  editDisabledReason,
   className,
 }: HoldingsTableProps) {
   const [sortField, setSortField] = useState<SortField>('unrealized_pnl');
@@ -90,7 +101,7 @@ export function HoldingsTable({
   }
 
   const sortedHoldings = [...holdings].sort((a, b) => {
-    const getValue = (h: HoldingWithPnL, field: SortField): number => {
+    const getValue = (h: HoldingPnL, field: SortField): number => {
       switch (field) {
         case 'axie_id':
           return h.axie_id;
@@ -159,7 +170,6 @@ export function HoldingsTable({
             <TableHeader>
               <TableRow>
                 <SortableHeader field="axie_id">Axie ID</SortableHeader>
-                <TableHead>Class</TableHead>
                 <SortableHeader field="cost_basis">Cost Basis</SortableHeader>
                 <SortableHeader field="current_value">Current Value</SortableHeader>
                 <SortableHeader field="unrealized_pnl">P&L</SortableHeader>
@@ -173,6 +183,8 @@ export function HoldingsTable({
                   key={holding.axie_id}
                   holding={holding}
                   onUpdateCostBasis={onUpdateCostBasis}
+                  canEdit={canEdit}
+                  editDisabledReason={editDisabledReason}
                 />
               ))}
             </TableBody>
@@ -184,16 +196,23 @@ export function HoldingsTable({
 }
 
 interface HoldingRowProps {
-  holding: HoldingWithPnL;
+  holding: HoldingPnL;
   onUpdateCostBasis?: (
     axieId: number,
     costBasisEth: number,
     acquisitionType?: AcquisitionType,
     acquiredAt?: string
   ) => void;
+  canEdit?: boolean;
+  editDisabledReason?: string;
 }
 
-function HoldingRow({ holding, onUpdateCostBasis }: HoldingRowProps) {
+function HoldingRow({
+  holding,
+  onUpdateCostBasis,
+  canEdit = true,
+  editDisabledReason,
+}: HoldingRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [costBasis, setCostBasis] = useState(
     holding.cost_basis_eth?.toString() || ''
@@ -232,15 +251,6 @@ function HoldingRow({ holding, onUpdateCostBasis }: HoldingRowProps) {
           #{holding.axie_id}
           <ExternalLink className="h-3 w-3" />
         </a>
-      </TableCell>
-      <TableCell>
-        {holding.class ? (
-          <Badge variant="outline" className="capitalize">
-            {holding.class}
-          </Badge>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )}
       </TableCell>
       <TableCell>
         {hasCostBasis ? (
@@ -288,12 +298,13 @@ function HoldingRow({ holding, onUpdateCostBasis }: HoldingRowProps) {
         )}
       </TableCell>
       <TableCell className="text-right">
-        <Dialog open={isEditing} onOpenChange={setIsEditing}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="sm">
-              <Edit2 className="h-4 w-4" />
-            </Button>
-          </DialogTrigger>
+        {canEdit ? (
+          <Dialog open={isEditing} onOpenChange={setIsEditing}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <Edit2 className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Cost Basis</DialogTitle>
@@ -339,6 +350,16 @@ function HoldingRow({ holding, onUpdateCostBasis }: HoldingRowProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled
+            title={editDisabledReason || 'Connect wallet to edit'}
+          >
+            <Lock className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -358,7 +379,7 @@ function HoldingsTableSkeleton({ className }: { className?: string }) {
           <Table>
             <TableHeader>
               <TableRow>
-                {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                {[1, 2, 3, 4, 5, 6].map((i) => (
                   <TableHead key={i}>
                     <Skeleton className="h-4 w-16" />
                   </TableHead>
@@ -368,7 +389,7 @@ function HoldingsTableSkeleton({ className }: { className?: string }) {
             <TableBody>
               {[1, 2, 3, 4, 5].map((i) => (
                 <TableRow key={i}>
-                  {[1, 2, 3, 4, 5, 6, 7].map((j) => (
+                  {[1, 2, 3, 4, 5, 6].map((j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>

@@ -112,11 +112,11 @@ export default function HomePage() {
       </section>
 
       {/* Meta Alert Banner */}
-      {(metaShiftsData?.shifts?.length ?? 0) > 0 && (
+      {(metaShiftsData?.data?.length ?? 0) > 0 && (
         <section className="border-b">
           <div className="container mx-auto px-4 py-4">
             <MetaAlertBanner
-              shifts={metaShiftsData?.shifts ?? []}
+              shifts={metaShiftsData?.data ?? []}
               isLoading={metaLoading}
               maxDisplay={3}
             />

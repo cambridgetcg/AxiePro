@@ -60,6 +60,13 @@ export const portfolioApi = {
   /**
    * Update cost basis for a holding.
    * PATCH /wallets/{address}/holdings/{axie_id}/cost-basis
+   *
+   * Requires authentication - the authenticated wallet must match the address.
+   *
+   * @param address - Wallet address
+   * @param axieId - Axie ID
+   * @param params - Cost basis update parameters
+   * @param authToken - JWT auth token (required)
    */
   updateCostBasis: (
     address: string,
@@ -68,7 +75,8 @@ export const portfolioApi = {
       costBasisEth: number;
       acquisitionType?: AcquisitionType;
       acquiredAt?: string; // ISO date
-    }
+    },
+    authToken: string
   ): Promise<CostBasisUpdateResponse> => {
     const searchParams = new URLSearchParams();
     searchParams.set('cost_basis_eth', String(params.costBasisEth));
@@ -77,7 +85,7 @@ export const portfolioApi = {
     const query = searchParams.toString();
     return apiClient(
       `/wallets/${address.toLowerCase()}/holdings/${axieId}/cost-basis?${query}`,
-      { method: 'PATCH' }
+      { method: 'PATCH', authToken }
     );
   },
 };

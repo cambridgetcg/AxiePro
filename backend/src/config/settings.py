@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     goldrush_api_key: Optional[str] = None
     skymavis_api_key: Optional[str] = None
 
+    # Authentication
+    jwt_secret: str = "change-this-in-production-min-32-chars"
+    jwt_expiry_hours: int = 24
+    auth_challenge_ttl_minutes: int = 5
+
     # AWS Configuration
     aws_region: str = "us-east-1"
     aws_secret_name: str = "axie-explorer/api-keys"
