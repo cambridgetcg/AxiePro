@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useWalletStore } from "@/stores/wallet-store";
 import { useState, useCallback } from "react";
+import { getExplorerAddressUrl, getCurrentNetwork, isTestnet } from "@/lib/wallet/network";
 
 interface WalletDropdownProps {
   address: string;
@@ -31,9 +32,11 @@ export function WalletDropdown({ address, children }: WalletDropdownProps) {
   }, [address]);
 
   const openExplorer = useCallback(() => {
-    // Ronin explorer URL
-    window.open(`https://app.roninchain.com/address/${address}`, "_blank");
+    // Use network-specific explorer URL
+    window.open(getExplorerAddressUrl(address), "_blank");
   }, [address]);
+
+  const network = getCurrentNetwork();
 
   const isAuth = isAuthenticated();
 
@@ -43,7 +46,14 @@ export function WalletDropdown({ address, children }: WalletDropdownProps) {
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium">Connected Wallet</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium">Connected Wallet</p>
+              {isTestnet() && (
+                <span className="text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-500 rounded">
+                  {network.name}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground font-mono">
               {address.slice(0, 10)}...{address.slice(-8)}
             </p>
