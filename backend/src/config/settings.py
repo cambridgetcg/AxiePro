@@ -104,8 +104,43 @@ class Settings(BaseSettings):
         if aws_secrets.get("redis_url"):
             self.redis_url = aws_secrets["redis_url"]
 
-    # Ronin RPC
-    ronin_rpc_url: str = "https://api.roninchain.com/rpc"
+    # Ronin Network Configuration
+    # Set to 'testnet' to use Saigon testnet, 'mainnet' for production
+    ronin_network: str = "mainnet"
+
+    # Ronin RPC URLs (automatically selected based on ronin_network)
+    ronin_mainnet_rpc_url: str = "https://api.roninchain.com/rpc"
+    ronin_testnet_rpc_url: str = "https://saigon-testnet.roninchain.com/rpc"
+
+    # Ronin Chain IDs
+    ronin_mainnet_chain_id: int = 2020
+    ronin_testnet_chain_id: int = 2021
+
+    @property
+    def ronin_rpc_url(self) -> str:
+        """Get the Ronin RPC URL for the configured network."""
+        if self.ronin_network == "testnet":
+            return self.ronin_testnet_rpc_url
+        return self.ronin_mainnet_rpc_url
+
+    @property
+    def ronin_chain_id(self) -> int:
+        """Get the Ronin chain ID for the configured network."""
+        if self.ronin_network == "testnet":
+            return self.ronin_testnet_chain_id
+        return self.ronin_mainnet_chain_id
+
+    @property
+    def ronin_explorer_url(self) -> str:
+        """Get the Ronin explorer URL for the configured network."""
+        if self.ronin_network == "testnet":
+            return "https://saigon-app.roninchain.com"
+        return "https://app.roninchain.com"
+
+    @property
+    def is_testnet(self) -> bool:
+        """Check if running on testnet."""
+        return self.ronin_network == "testnet"
 
     # API Rate Limits (requests per minute)
     goldrush_rate_limit: int = 100
@@ -131,8 +166,9 @@ class Settings(BaseSettings):
         return "https://api.covalenthq.com/v1"
 
     @property
-    def ronin_chain_id(self) -> str:
-        return "axie-mainnet"  # Goldrush chain identifier for Ronin/Axie
+    def goldrush_chain_id(self) -> str:
+        """Goldrush chain identifier for Ronin (mainnet only - testnet not supported)."""
+        return "axie-mainnet"
 
 
 @lru_cache

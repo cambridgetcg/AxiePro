@@ -7,6 +7,10 @@ export const config = {
   apiBaseUrl: process.env.NEXT_PUBLIC_API_URL || '',
   apiVersion: 'v1',
 
+  // Network configuration
+  // Set NEXT_PUBLIC_RONIN_NETWORK to 'testnet' to use Saigon testnet
+  roninNetwork: (process.env.NEXT_PUBLIC_RONIN_NETWORK || 'mainnet') as 'mainnet' | 'testnet',
+
   // Cache and polling configuration
   defaultStaleTime: 60_000, // 1 minute
   dealsPollingInterval: 30_000, // 30 seconds
