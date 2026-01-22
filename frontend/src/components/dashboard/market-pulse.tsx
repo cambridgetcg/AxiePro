@@ -59,7 +59,10 @@ function StatCard({ label, value, change, positive, icon, isLoading }: StatCardP
   );
 }
 
-function formatEth(value: number): string {
+function formatEth(value: number | undefined | null): string {
+  if (value === undefined || value === null || !Number.isFinite(value)) {
+    return '--';
+  }
   if (value >= 1000) {
     return `${(value / 1000).toFixed(1)}K ETH`;
   }
@@ -69,7 +72,10 @@ function formatEth(value: number): string {
   return `${value.toFixed(4)} ETH`;
 }
 
-function formatNumber(value: number): string {
+function formatNumber(value: number | undefined | null): string {
+  if (value === undefined || value === null || !Number.isFinite(value)) {
+    return '--';
+  }
   if (value >= 1000000) {
     return `${(value / 1000000).toFixed(1)}M`;
   }
@@ -80,31 +86,45 @@ function formatNumber(value: number): string {
 }
 
 function calculateChange(current: MarketStats, previous: MarketStats): {
-  volumeChange: string;
-  salesChange: string;
-  avgPriceChange: string;
-  floorChange: string;
+  volumeChange: string | undefined;
+  salesChange: string | undefined;
+  avgPriceChange: string | undefined;
+  floorChange: string | undefined;
   volumePositive: boolean;
   salesPositive: boolean;
   avgPricePositive: boolean;
   floorPositive: boolean;
-} {
-  const volumeDiff = ((current.volume_eth - previous.volume_eth) / previous.volume_eth) * 100;
-  const salesDiff = ((current.sales_count - previous.sales_count) / previous.sales_count) * 100;
-  const avgPriceDiff = ((current.avg_price_eth - previous.avg_price_eth) / previous.avg_price_eth) * 100;
-  const floorDiff = ((current.floor_price_eth - previous.floor_price_eth) / previous.floor_price_eth) * 100;
+} | null {
+  // Guard against division by zero - return null if previous values are 0
+  if (!previous.volume_eth && !previous.sales_count && !previous.avg_price_eth) {
+    return null;
+  }
 
-  const formatPercent = (val: number) => `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
+  const safePercent = (curr: number, prev: number): number | null => {
+    if (prev === 0 || !Number.isFinite(prev)) return null;
+    const diff = ((curr - prev) / prev) * 100;
+    return Number.isFinite(diff) ? diff : null;
+  };
+
+  const formatPercent = (val: number | null): string | undefined => {
+    if (val === null || !Number.isFinite(val)) return undefined;
+    return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
+  };
+
+  const volumeDiff = safePercent(current.volume_eth, previous.volume_eth);
+  const salesDiff = safePercent(current.sales_count, previous.sales_count);
+  const avgPriceDiff = safePercent(current.avg_price_eth, previous.avg_price_eth);
+  const floorDiff = safePercent(current.floor_price_eth ?? 0, previous.floor_price_eth ?? 0);
 
   return {
     volumeChange: formatPercent(volumeDiff),
     salesChange: formatPercent(salesDiff),
     avgPriceChange: formatPercent(avgPriceDiff),
     floorChange: formatPercent(floorDiff),
-    volumePositive: volumeDiff >= 0,
-    salesPositive: salesDiff >= 0,
-    avgPricePositive: avgPriceDiff >= 0,
-    floorPositive: floorDiff >= 0,
+    volumePositive: (volumeDiff ?? 0) >= 0,
+    salesPositive: (salesDiff ?? 0) >= 0,
+    avgPricePositive: (avgPriceDiff ?? 0) >= 0,
+    floorPositive: (floorDiff ?? 0) >= 0,
   };
 }
 

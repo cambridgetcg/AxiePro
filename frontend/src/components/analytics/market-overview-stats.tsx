@@ -65,9 +65,14 @@ export function MarketOverviewStats({ className }: MarketOverviewStatsProps) {
   const stats7d = data?.data?.['7d'];
   const stats30d = data?.data?.['30d'];
 
-  // Calculate period changes
-  const volumeChange7d = stats24h && stats7d
+  // Calculate period changes (guard against division by zero)
+  const volumeChange7d = stats24h && stats7d && stats7d.volume_eth > 0
     ? ((stats24h.volume_eth * 7 - stats7d.volume_eth) / stats7d.volume_eth) * 100
+    : null;
+
+  // Ensure volumeChange7d is a valid finite number
+  const safeVolumeChange7d = volumeChange7d !== null && Number.isFinite(volumeChange7d)
+    ? volumeChange7d
     : null;
 
   return (
@@ -153,24 +158,24 @@ export function MarketOverviewStats({ className }: MarketOverviewStatsProps) {
         )}
 
         {/* Volume Trend Indicator */}
-        {volumeChange7d !== null && (
+        {safeVolumeChange7d !== null && (
           <div className="mt-4 pt-4 border-t flex items-center justify-between">
             <span className="text-sm text-muted-foreground">7-day Volume Trend</span>
             <Badge
               variant="outline"
               className={cn(
-                volumeChange7d >= 0
+                safeVolumeChange7d >= 0
                   ? 'border-green-500 text-green-500'
                   : 'border-red-500 text-red-500'
               )}
             >
-              {volumeChange7d >= 0 ? (
+              {safeVolumeChange7d >= 0 ? (
                 <TrendingUp className="h-3 w-3 mr-1" />
               ) : (
                 <TrendingDown className="h-3 w-3 mr-1" />
               )}
-              {volumeChange7d >= 0 ? '+' : ''}
-              {volumeChange7d.toFixed(1)}%
+              {safeVolumeChange7d >= 0 ? '+' : ''}
+              {safeVolumeChange7d.toFixed(1)}%
             </Badge>
           </div>
         )}
