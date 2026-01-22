@@ -12,14 +12,14 @@ import type { AxieClass } from './valuation';
  */
 export interface MarketStats {
   volume_eth: number;
-  volume_usd: number;
   sales_count: number;
   unique_buyers: number;
   unique_sellers: number;
   avg_price_eth: number;
-  avg_price_usd: number;
   median_price_eth: number;
-  floor_price_eth: number;
+  floor_price_eth: number | null;
+  max_price_eth?: number | null;
+  active_listings?: number;
 }
 
 /**
@@ -32,8 +32,86 @@ export interface MarketStatsResponse {
     '7d': MarketStats;
     '30d': MarketStats;
   };
-  meta: {
+  cached?: boolean;
+}
+
+/**
+ * Floor price with 24h change for a class.
+ */
+export interface FloorPriceWithChange {
+  class_: string;
+  floor_eth: number;
+  count: number;
+  change_24h: number | null;
+}
+
+/**
+ * Price point in time-series data.
+ */
+export interface PricePoint {
+  time: string;
+  floor_eth: number | null;
+  avg_eth: number | null;
+  volume: number;
+  listings_count: number;
+}
+
+/**
+ * Market summary combining stats, floors, and trends.
+ */
+export interface MarketSummary {
+  stats: {
+    '24h': MarketStats;
+    '7d': MarketStats;
+    '30d': MarketStats;
+  };
+  floor_prices: FloorPriceWithChange[];
+  trends: {
+    volume_trend_24h: number | null;
+  };
+  computed_at: string;
+}
+
+/**
+ * Market summary response from GET /market/analytics/summary
+ */
+export interface MarketSummaryResponse {
+  success: boolean;
+  data: MarketSummary;
+}
+
+/**
+ * Analytics floor prices response from GET /market/analytics/floor-prices
+ */
+export interface AnalyticsFloorPricesResponse {
+  success: boolean;
+  data: {
     timestamp: string;
+    floors: FloorPriceWithChange[];
+  };
+}
+
+/**
+ * Price history response from GET /market/analytics/price-history
+ */
+export interface PriceHistoryResponse {
+  success: boolean;
+  data: {
+    trait_key: string;
+    interval: string;
+    points: PricePoint[];
+  };
+}
+
+/**
+ * Class price history response from GET /market/analytics/class-history/{class}
+ */
+export interface ClassPriceHistoryResponse {
+  success: boolean;
+  data: {
+    class: string;
+    interval: string;
+    points: PricePoint[];
   };
 }
 

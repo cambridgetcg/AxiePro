@@ -133,3 +133,80 @@ class PriceHistory(Base):
         Index("idx_price_history_class", "class"),
         Index("idx_price_history_trait", "trait_key"),
     )
+
+
+class PriceSnapshot(Base):
+    """
+    Time-series price snapshots captured by the price_ingestion lambda.
+
+    This maps to the partitioned price_snapshots table which stores
+    floor prices and statistics every 5 minutes.
+
+    Table is partitioned by month for efficient time-range queries.
+    """
+
+    __tablename__ = "price_snapshots"
+
+    # Composite primary key for time-series
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    trait_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    class_: Mapped[str] = mapped_column("class", Text, primary_key=True)
+
+    # Price metrics
+    floor_eth: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 8))
+    avg_eth: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 8))
+
+    # Volume and count metrics
+    volume: Mapped[int] = mapped_column(Integer, default=0)
+    listings_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Note: Table is partitioned, so we don't define __table_args__ indexes here
+    # They're created in the migration
+
+
+class MarketStats(Base):
+    """
+    Pre-aggregated market statistics for different time periods.
+
+    Computed periodically by the market_aggregator service and cached
+    for fast API responses.
+    """
+
+    __tablename__ = "market_stats"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # Time period: 1h, 24h, 7d, 30d
+    period: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+
+    # Optional class filter (null = all classes)
+    class_: Mapped[Optional[str]] = mapped_column("class", String(20), index=True)
+
+    # Volume metrics
+    volume_eth: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0)
+    sales_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Price metrics
+    avg_price_eth: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0)
+    median_price_eth: Mapped[Decimal] = mapped_column(Numeric(20, 8), default=0)
+    floor_price_eth: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 8))
+    max_price_eth: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 8))
+
+    # Participant metrics
+    unique_buyers: Mapped[int] = mapped_column(Integer, default=0)
+    unique_sellers: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Listing metrics
+    active_listings: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Timestamps
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        index=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("period", "class", name="uq_market_stats_period_class"),
+        Index("idx_market_stats_period_computed", "period", "computed_at"),
+    )

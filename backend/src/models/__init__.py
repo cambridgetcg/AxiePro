@@ -2,10 +2,17 @@
 
 from .database import Base, engine, get_db, get_session, init_db, close_db
 from .axie import Axie, Part, AxiePart, Ability, AxieClass, PartType, GeneType
-from .market import Listing, Sale, PriceHistory
+from .market import Listing, Sale, PriceHistory, PriceSnapshot, MarketStats
 from .wallet import Wallet, WalletHolding
 from .breeding import BreedingPair, Breed
 from .auth import AuthChallenge
+from .instrumentation import (
+    InstrumentationEvent,
+    ValueMetric,
+    PurposeAlignmentSnapshot,
+    EventType,
+    Feature,
+)
 
 __all__ = [
     # Database
@@ -24,6 +31,8 @@ __all__ = [
     "Listing",
     "Sale",
     "PriceHistory",
+    "PriceSnapshot",
+    "MarketStats",
     # Wallet models
     "Wallet",
     "WalletHolding",
@@ -32,8 +41,14 @@ __all__ = [
     "Breed",
     # Auth models
     "AuthChallenge",
+    # Instrumentation models
+    "InstrumentationEvent",
+    "ValueMetric",
+    "PurposeAlignmentSnapshot",
     # Enums
     "AxieClass",
     "PartType",
     "GeneType",
+    "EventType",
+    "Feature",
 ]

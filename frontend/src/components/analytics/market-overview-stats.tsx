@@ -40,8 +40,8 @@ function MetricRow({ label, value24h, value7d, value30d, isLoading }: MetricRowP
   );
 }
 
-function formatEth(value: number | undefined): string {
-  if (value === undefined) return '--';
+function formatEth(value: number | null | undefined): string {
+  if (value === undefined || value === null) return '--';
   if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
   if (value >= 1) return value.toFixed(2);
   return value.toFixed(4);
