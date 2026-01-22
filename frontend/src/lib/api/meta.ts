@@ -7,40 +7,94 @@ import { apiClient } from './client';
 import type {
   MetaSummaryResponse,
   MetaShiftsResponse,
+  TrendingResponse,
+  ClassMetaResponse,
+  TraitHistoryResponse,
+  MetaHealthResponse,
   ShiftType,
+  MetaShiftsParams,
+  TrendingParams,
+  VelocityLeadersParams,
+  ClassMetaParams,
+  TraitHistoryParams,
 } from '@/types/meta';
 
+/**
+ * Build URL search params from an object, filtering out undefined values.
+ */
+function buildSearchParams(params: object): string {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) {
+      // Convert camelCase to snake_case for API
+      const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+      searchParams.set(snakeKey, String(value));
+    }
+  }
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
+}
+
 export const metaApi = {
+  // =========================================================================
+  // Core Endpoints
+  // =========================================================================
+
   /**
    * Get meta shifts summary.
    * GET /meta/summary
    */
-  getSummary: (): Promise<MetaSummaryResponse> =>
-    apiClient('/meta/summary'),
+  getSummary: (useCache = true): Promise<MetaSummaryResponse> =>
+    apiClient(`/meta/summary?use_cache=${useCache}`),
 
   /**
    * Get meta shifts with optional filters.
    * GET /meta/shifts
    */
-  getShifts: (params?: {
-    shiftType?: ShiftType;
-    minConfidence?: number;
-    limit?: number;
-  }): Promise<MetaShiftsResponse> => {
-    const searchParams = new URLSearchParams();
-    if (params?.shiftType) searchParams.set('shift_type', params.shiftType);
-    if (params?.minConfidence !== undefined) searchParams.set('min_confidence', String(params.minConfidence));
-    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
-    const query = searchParams.toString();
-    return apiClient(`/meta/shifts${query ? `?${query}` : ''}`);
+  getShifts: (params?: MetaShiftsParams): Promise<MetaShiftsResponse> => {
+    const query = params ? buildSearchParams(params) : '';
+    return apiClient(`/meta/shifts${query}`);
   },
 
   /**
-   * Get meta shift for a specific trait.
-   * GET /meta/shifts/{trait_key}
+   * Get trending traits based on recent meta shifts.
+   * GET /meta/trending
    */
-  getTraitShift: (traitKey: string): Promise<MetaShiftsResponse> =>
-    apiClient(`/meta/shifts/${encodeURIComponent(traitKey)}`),
+  getTrending: (params?: TrendingParams): Promise<TrendingResponse> => {
+    const query = params ? buildSearchParams(params) : '';
+    return apiClient(`/meta/trending${query}`);
+  },
+
+  /**
+   * Get traits with highest price velocity (fastest movers).
+   * GET /meta/velocity-leaders
+   */
+  getVelocityLeaders: (params?: VelocityLeadersParams): Promise<MetaShiftsResponse> => {
+    const query = params ? buildSearchParams(params) : '';
+    return apiClient(`/meta/velocity-leaders${query}`);
+  },
+
+  /**
+   * Get meta analysis for a specific Axie class.
+   * GET /meta/class/{class}
+   */
+  getClassMeta: (axieClass: string, params?: ClassMetaParams): Promise<ClassMetaResponse> => {
+    const query = params ? buildSearchParams(params) : '';
+    return apiClient(`/meta/class/${encodeURIComponent(axieClass)}${query}`);
+  },
+
+  /**
+   * Get meta shift history for a specific trait.
+   * GET /meta/trait/{trait_key}
+   */
+  getTraitHistory: (traitKey: string, params?: TraitHistoryParams): Promise<TraitHistoryResponse> => {
+    const query = params ? buildSearchParams(params) : '';
+    return apiClient(`/meta/trait/${encodeURIComponent(traitKey)}${query}`);
+  },
+
+  // =========================================================================
+  // Convenience Endpoints (shift type shortcuts)
+  // =========================================================================
 
   /**
    * Get rising meta shifts.
@@ -49,12 +103,11 @@ export const metaApi = {
   getRising: (params?: {
     limit?: number;
     minConfidence?: number;
+    hours?: number;
+    useCache?: boolean;
   }): Promise<MetaShiftsResponse> => {
-    const searchParams = new URLSearchParams();
-    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
-    if (params?.minConfidence !== undefined) searchParams.set('min_confidence', String(params.minConfidence));
-    const query = searchParams.toString();
-    return apiClient(`/meta/rising${query ? `?${query}` : ''}`);
+    const query = params ? buildSearchParams(params) : '';
+    return apiClient(`/meta/rising${query}`);
   },
 
   /**
@@ -64,12 +117,11 @@ export const metaApi = {
   getFalling: (params?: {
     limit?: number;
     minConfidence?: number;
+    hours?: number;
+    useCache?: boolean;
   }): Promise<MetaShiftsResponse> => {
-    const searchParams = new URLSearchParams();
-    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
-    if (params?.minConfidence !== undefined) searchParams.set('min_confidence', String(params.minConfidence));
-    const query = searchParams.toString();
-    return apiClient(`/meta/falling${query ? `?${query}` : ''}`);
+    const query = params ? buildSearchParams(params) : '';
+    return apiClient(`/meta/falling${query}`);
   },
 
   /**
@@ -79,12 +131,11 @@ export const metaApi = {
   getEmerging: (params?: {
     limit?: number;
     minConfidence?: number;
+    hours?: number;
+    useCache?: boolean;
   }): Promise<MetaShiftsResponse> => {
-    const searchParams = new URLSearchParams();
-    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
-    if (params?.minConfidence !== undefined) searchParams.set('min_confidence', String(params.minConfidence));
-    const query = searchParams.toString();
-    return apiClient(`/meta/emerging${query ? `?${query}` : ''}`);
+    const query = params ? buildSearchParams(params) : '';
+    return apiClient(`/meta/emerging${query}`);
   },
 
   /**
@@ -94,25 +145,20 @@ export const metaApi = {
   getFading: (params?: {
     limit?: number;
     minConfidence?: number;
+    hours?: number;
+    useCache?: boolean;
   }): Promise<MetaShiftsResponse> => {
-    const searchParams = new URLSearchParams();
-    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
-    if (params?.minConfidence !== undefined) searchParams.set('min_confidence', String(params.minConfidence));
-    const query = searchParams.toString();
-    return apiClient(`/meta/fading${query ? `?${query}` : ''}`);
+    const query = params ? buildSearchParams(params) : '';
+    return apiClient(`/meta/fading${query}`);
   },
 
+  // =========================================================================
+  // Health Check
+  // =========================================================================
+
   /**
-   * Check meta cache health.
+   * Check meta service health.
    * GET /meta/health
    */
-  getHealth: (): Promise<{
-    success: boolean;
-    data: {
-      redis_available: boolean;
-      meta_data_present: boolean;
-      last_analysis: string | null;
-      total_shifts: number;
-    };
-  }> => apiClient('/meta/health'),
+  getHealth: (): Promise<MetaHealthResponse> => apiClient('/meta/health'),
 };

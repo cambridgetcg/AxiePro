@@ -3,13 +3,23 @@ Meta Shifts API endpoints.
 
 Exposes meta shift detection signals from the meta analyzer Lambda.
 This data helps traders identify early movers and market trends.
+
+Now enhanced with MetaAggregatorService for database-backed queries
+in addition to Redis cache reads.
 """
 
 import json
-from datetime import datetime
-from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query
+from datetime import datetime, timezone
+from typing import Optional, List, Literal
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models import get_db
+from src.services.meta_aggregator import (
+    MetaAggregatorService,
+    get_meta_aggregator,
+)
 
 try:
     import redis.asyncio as redis
@@ -29,14 +39,15 @@ router = APIRouter(prefix="/meta", tags=["meta"])
 
 class MetaShift(BaseModel):
     """Individual meta shift signal."""
+    id: Optional[int] = None
     trait_key: str = Field(..., description="Trait identifier (e.g., 'class:beast', 'part:horn:lagging')")
     class_: Optional[str] = Field(None, alias="class", description="Axie class")
     shift_type: str = Field(..., description="Type of shift: rising, falling, emerging, fading")
     confidence: int = Field(..., ge=0, le=100, description="Confidence score (0-100)")
-    signals: List[str] = Field(..., description="Contributing signals (e.g., '24h price +15%')")
-    price_velocity_24h: Optional[dict] = Field(None, description="24-hour price change data")
-    price_velocity_7d: Optional[dict] = Field(None, description="7-day price change data")
-    volume_change: Optional[dict] = Field(None, description="Volume change data")
+    signals: List[str] = Field(default=[], description="Contributing signals (e.g., '24h price +15%')")
+    velocity_24h: Optional[float] = Field(None, description="24-hour price velocity %")
+    velocity_7d: Optional[float] = Field(None, description="7-day price velocity %")
+    volume_change_24h: Optional[float] = Field(None, description="24-hour volume change %")
     detected_at: str = Field(..., description="ISO timestamp of detection")
 
     class Config:
@@ -51,6 +62,35 @@ class MetaSummary(BaseModel):
     falling: int
     emerging: int
     fading: int
+    top_rising: Optional[List[dict]] = None
+    top_falling: Optional[List[dict]] = None
+
+
+class TrendingTrait(BaseModel):
+    """Trending trait with velocity data."""
+    trait_key: str
+    class_: str = Field(alias="class")
+    shift_type: str
+    velocity_24h: Optional[float]
+    velocity_7d: Optional[float]
+    confidence: int
+    first_detected: str
+    occurrences: int
+
+    class Config:
+        populate_by_name = True
+
+
+class ClassMeta(BaseModel):
+    """Meta analysis for a specific class."""
+    class_: str = Field(alias="class")
+    total_shifts: int
+    avg_confidence: float
+    shift_breakdown: dict
+    recent_shifts: List[dict]
+
+    class Config:
+        populate_by_name = True
 
 
 class MetaShiftsResponse(BaseModel):
@@ -63,12 +103,26 @@ class MetaShiftsResponse(BaseModel):
 class MetaSummaryResponse(BaseModel):
     """Response for meta summary."""
     success: bool
-    data: MetaSummary
+    data: dict
+    meta: dict
+
+
+class TrendingResponse(BaseModel):
+    """Response for trending traits."""
+    success: bool
+    data: List[dict]
+    meta: dict
+
+
+class ClassMetaResponse(BaseModel):
+    """Response for class meta analysis."""
+    success: bool
+    data: dict
     meta: dict
 
 
 # =========================================================================
-# Redis Client Helper
+# Redis Client Helper (for backward compatibility with lambda cache)
 # =========================================================================
 
 _redis_client = None
@@ -97,7 +151,7 @@ async def get_redis_client():
 
 
 async def get_meta_cache(key: str) -> Optional[dict]:
-    """Get data from meta cache."""
+    """Get data from meta cache (lambda-populated)."""
     client = await get_redis_client()
     if not client:
         return None
@@ -112,33 +166,55 @@ async def get_meta_cache(key: str) -> Optional[dict]:
 
 
 # =========================================================================
-# Endpoints
+# Endpoints - Enhanced with MetaAggregatorService
 # =========================================================================
 
 @router.get("/summary", response_model=MetaSummaryResponse)
-async def get_meta_summary():
+async def get_meta_summary(
+    use_cache: bool = Query(True, description="Use cached results"),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Get summary of current meta shifts.
 
-    Returns counts of each shift type (rising, falling, emerging, fading)
-    and the timestamp of the last analysis.
+    Returns counts of each shift type (rising, falling, emerging, fading),
+    the timestamp of the last analysis, and top movers.
+
+    Data sources:
+    - Primary: MetaAggregatorService (database)
+    - Fallback: Redis cache (lambda-populated)
     """
-    summary = await get_meta_cache("meta:summary")
+    try:
+        aggregator = await get_meta_aggregator(db)
+        summary = await aggregator.get_meta_summary(use_cache=use_cache)
 
-    if not summary:
-        raise HTTPException(
-            status_code=503,
-            detail="Meta analysis data not available. The meta analyzer runs hourly."
-        )
-
-    return {
-        "success": True,
-        "data": summary,
-        "meta": {
-            "cache_key": "meta:summary",
-            "ttl_seconds": 3600,
+        return {
+            "success": True,
+            "data": summary,
+            "meta": {
+                "source": "database",
+                "cached": use_cache,
+            }
         }
-    }
+    except Exception as e:
+        # Fallback to Redis cache
+        summary = await get_meta_cache("meta:summary")
+
+        if not summary:
+            raise HTTPException(
+                status_code=503,
+                detail="Meta analysis data not available. The meta analyzer runs hourly."
+            )
+
+        return {
+            "success": True,
+            "data": summary,
+            "meta": {
+                "source": "redis_cache",
+                "cache_key": "meta:summary",
+                "ttl_seconds": 3600,
+            }
+        }
 
 
 @router.get("/shifts", response_model=MetaShiftsResponse)
@@ -153,7 +229,10 @@ async def get_meta_shifts(
         le=100,
         description="Minimum confidence score (0-100)"
     ),
-    limit: int = Query(20, ge=1, le=50, description="Maximum results"),
+    hours: int = Query(24, ge=1, le=168, description="Look back period in hours"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum results"),
+    use_cache: bool = Query(True, description="Use cached results"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get current meta shift signals.
@@ -166,112 +245,249 @@ async def get_meta_shifts(
 
     Higher confidence indicates more signals aligned (velocity + volume + trend).
     """
-    shifts = []
+    if shift_type and shift_type not in ["rising", "falling", "emerging", "fading"]:
+        raise HTTPException(
+            status_code=400,
+            detail="shift_type must be one of: rising, falling, emerging, fading"
+        )
 
-    if shift_type:
-        # Get specific type
-        if shift_type not in ["rising", "falling", "emerging", "fading"]:
-            raise HTTPException(
-                status_code=400,
-                detail="shift_type must be one of: rising, falling, emerging, fading"
+    try:
+        aggregator = await get_meta_aggregator(db)
+
+        if shift_type:
+            shifts = await aggregator.get_shifts_by_type(
+                shift_type=shift_type,
+                min_confidence=min_confidence,
+                limit=limit,
+                hours=hours,
+                use_cache=use_cache,
             )
+        else:
+            result = await aggregator.get_all_shifts(
+                min_confidence=min_confidence,
+                hours=hours,
+                limit=limit,
+            )
+            shifts = result["shifts"]
 
-        type_shifts = await get_meta_cache(f"meta:{shift_type}")
-        if type_shifts:
-            shifts = type_shifts
-    else:
-        # Get all types
-        for stype in ["rising", "falling", "emerging", "fading"]:
-            type_shifts = await get_meta_cache(f"meta:{stype}")
+        return {
+            "success": True,
+            "data": shifts,
+            "meta": {
+                "count": len(shifts),
+                "shift_type_filter": shift_type,
+                "min_confidence": min_confidence,
+                "hours": hours,
+                "source": "database",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        }
+    except Exception:
+        # Fallback to Redis cache
+        shifts = []
+
+        if shift_type:
+            type_shifts = await get_meta_cache(f"meta:{shift_type}")
             if type_shifts:
-                shifts.extend(type_shifts)
+                shifts = type_shifts
+        else:
+            for stype in ["rising", "falling", "emerging", "fading"]:
+                type_shifts = await get_meta_cache(f"meta:{stype}")
+                if type_shifts:
+                    shifts.extend(type_shifts)
 
-    # Filter by confidence
-    shifts = [s for s in shifts if s.get("confidence", 0) >= min_confidence]
+        shifts = [s for s in shifts if s.get("confidence", 0) >= min_confidence]
+        shifts.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+        shifts = shifts[:limit]
 
-    # Sort by confidence descending
-    shifts.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+        return {
+            "success": True,
+            "data": shifts,
+            "meta": {
+                "count": len(shifts),
+                "shift_type_filter": shift_type,
+                "min_confidence": min_confidence,
+                "source": "redis_cache",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        }
 
-    # Apply limit
-    shifts = shifts[:limit]
+
+@router.get("/trending", response_model=TrendingResponse)
+async def get_trending_traits(
+    shift_types: Optional[str] = Query(
+        None,
+        description="Comma-separated shift types to filter (e.g., 'rising,emerging')"
+    ),
+    min_confidence: int = Query(30, ge=0, le=100),
+    limit: int = Query(20, ge=1, le=50),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get currently trending traits based on recent meta shifts.
+
+    Returns traits with multiple shift detections or high confidence,
+    aggregated over the last 48 hours.
+    """
+    aggregator = await get_meta_aggregator(db)
+
+    types_list = None
+    if shift_types:
+        types_list = [t.strip() for t in shift_types.split(",")]
+
+    trending = await aggregator.get_trending_traits(
+        shift_types=types_list,
+        min_confidence=min_confidence,
+        limit=limit,
+        use_cache=use_cache,
+    )
 
     return {
         "success": True,
-        "data": shifts,
+        "data": trending,
         "meta": {
-            "count": len(shifts),
-            "shift_type_filter": shift_type,
+            "count": len(trending),
+            "shift_types_filter": types_list,
             "min_confidence": min_confidence,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     }
 
 
-@router.get("/shifts/{trait_key}", response_model=MetaShiftsResponse)
-async def get_trait_meta_shift(
-    trait_key: str,
+@router.get("/velocity-leaders", response_model=MetaShiftsResponse)
+async def get_velocity_leaders(
+    direction: Literal["up", "down"] = Query("up", description="Price direction"),
+    hours: int = Query(24, ge=1, le=168),
+    limit: int = Query(10, ge=1, le=50),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Get meta shift data for a specific trait.
+    Get traits with highest price velocity (fastest movers).
+
+    - **up**: Biggest gainers (positive velocity)
+    - **down**: Biggest losers (negative velocity)
+    """
+    aggregator = await get_meta_aggregator(db)
+
+    leaders = await aggregator.get_velocity_leaders(
+        direction=direction,
+        hours=hours,
+        limit=limit,
+        use_cache=use_cache,
+    )
+
+    return {
+        "success": True,
+        "data": leaders,
+        "meta": {
+            "count": len(leaders),
+            "direction": direction,
+            "hours": hours,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    }
+
+
+@router.get("/class/{axie_class}", response_model=ClassMetaResponse)
+async def get_class_meta(
+    axie_class: str,
+    hours: int = Query(24, ge=1, le=168),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get meta analysis for a specific Axie class.
+
+    Returns aggregated stats and recent shifts for the class.
+    """
+    aggregator = await get_meta_aggregator(db)
+
+    class_data = await aggregator.get_class_meta(
+        axie_class=axie_class,
+        hours=hours,
+        use_cache=use_cache,
+    )
+
+    return {
+        "success": True,
+        "data": class_data,
+        "meta": {
+            "class": axie_class.lower(),
+            "hours": hours,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    }
+
+
+@router.get("/trait/{trait_key:path}", response_model=MetaShiftsResponse)
+async def get_trait_meta_history(
+    trait_key: str,
+    days: int = Query(7, ge=1, le=30, description="Look back period in days"),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get meta shift history for a specific trait.
 
     Trait keys follow the format:
     - `class:beast` - Class-level meta
     - `part:horn:lagging` - Part-level meta
     """
-    # Search all shift types for this trait
-    matching_shifts = []
+    aggregator = await get_meta_aggregator(db)
 
-    for shift_type in ["rising", "falling", "emerging", "fading"]:
-        type_shifts = await get_meta_cache(f"meta:{shift_type}")
-        if type_shifts:
-            for shift in type_shifts:
-                if shift.get("trait_key") == trait_key:
-                    matching_shifts.append(shift)
+    history = await aggregator.get_trait_history(
+        trait_key=trait_key,
+        days=days,
+        use_cache=use_cache,
+    )
 
-    if not matching_shifts:
+    if not history:
         raise HTTPException(
             status_code=404,
-            detail=f"No meta shift data found for trait: {trait_key}"
+            detail=f"No meta shift history found for trait: {trait_key}"
         )
 
     return {
         "success": True,
-        "data": matching_shifts,
+        "data": history,
         "meta": {
             "trait_key": trait_key,
-            "count": len(matching_shifts),
-            "timestamp": datetime.utcnow().isoformat(),
+            "days": days,
+            "count": len(history),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     }
 
+
+# =========================================================================
+# Convenience Endpoints (shift type shortcuts)
+# =========================================================================
 
 @router.get("/rising", response_model=MetaShiftsResponse)
 async def get_rising_meta(
     limit: int = Query(20, ge=1, le=50),
     min_confidence: int = Query(25, ge=0, le=100),
+    hours: int = Query(24, ge=1, le=168),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get traits with rising prices (>15% in 24h).
 
     These traits are experiencing rapid price increases and may
-    indicate emerging meta or pump activity. Use confidence score
-    to filter for more reliable signals.
+    indicate emerging meta or pump activity.
     """
-    shifts = await get_meta_cache("meta:rising")
+    aggregator = await get_meta_aggregator(db)
 
-    if not shifts:
-        return {
-            "success": True,
-            "data": [],
-            "meta": {
-                "count": 0,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-        }
-
-    # Filter and limit
-    shifts = [s for s in shifts if s.get("confidence", 0) >= min_confidence]
-    shifts = shifts[:limit]
+    shifts = await aggregator.get_shifts_by_type(
+        shift_type="rising",
+        min_confidence=min_confidence,
+        limit=limit,
+        hours=hours,
+        use_cache=use_cache,
+    )
 
     return {
         "success": True,
@@ -280,7 +496,8 @@ async def get_rising_meta(
             "count": len(shifts),
             "shift_type": "rising",
             "min_confidence": min_confidence,
-            "timestamp": datetime.utcnow().isoformat(),
+            "hours": hours,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     }
 
@@ -289,27 +506,24 @@ async def get_rising_meta(
 async def get_falling_meta(
     limit: int = Query(20, ge=1, le=50),
     min_confidence: int = Query(25, ge=0, le=100),
+    hours: int = Query(24, ge=1, le=168),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get traits with falling prices (>15% drop in 24h).
 
-    These traits are experiencing rapid price decreases. May indicate
-    meta shift away from these traits or market correction.
+    These traits are experiencing rapid price decreases.
     """
-    shifts = await get_meta_cache("meta:falling")
+    aggregator = await get_meta_aggregator(db)
 
-    if not shifts:
-        return {
-            "success": True,
-            "data": [],
-            "meta": {
-                "count": 0,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-        }
-
-    shifts = [s for s in shifts if s.get("confidence", 0) >= min_confidence]
-    shifts = shifts[:limit]
+    shifts = await aggregator.get_shifts_by_type(
+        shift_type="falling",
+        min_confidence=min_confidence,
+        limit=limit,
+        hours=hours,
+        use_cache=use_cache,
+    )
 
     return {
         "success": True,
@@ -318,7 +532,8 @@ async def get_falling_meta(
             "count": len(shifts),
             "shift_type": "falling",
             "min_confidence": min_confidence,
-            "timestamp": datetime.utcnow().isoformat(),
+            "hours": hours,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     }
 
@@ -327,27 +542,25 @@ async def get_falling_meta(
 async def get_emerging_meta(
     limit: int = Query(20, ge=1, le=50),
     min_confidence: int = Query(25, ge=0, le=100),
+    hours: int = Query(168, ge=1, le=336),  # Default 7 days for emerging
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get emerging meta trends (>10% sustained increase over 7 days).
 
     These traits show sustained growth patterns and may indicate
-    new meta forming. More reliable than short-term signals.
+    new meta forming.
     """
-    shifts = await get_meta_cache("meta:emerging")
+    aggregator = await get_meta_aggregator(db)
 
-    if not shifts:
-        return {
-            "success": True,
-            "data": [],
-            "meta": {
-                "count": 0,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-        }
-
-    shifts = [s for s in shifts if s.get("confidence", 0) >= min_confidence]
-    shifts = shifts[:limit]
+    shifts = await aggregator.get_shifts_by_type(
+        shift_type="emerging",
+        min_confidence=min_confidence,
+        limit=limit,
+        hours=hours,
+        use_cache=use_cache,
+    )
 
     return {
         "success": True,
@@ -356,7 +569,8 @@ async def get_emerging_meta(
             "count": len(shifts),
             "shift_type": "emerging",
             "min_confidence": min_confidence,
-            "timestamp": datetime.utcnow().isoformat(),
+            "hours": hours,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     }
 
@@ -365,27 +579,25 @@ async def get_emerging_meta(
 async def get_fading_meta(
     limit: int = Query(20, ge=1, le=50),
     min_confidence: int = Query(25, ge=0, le=100),
+    hours: int = Query(168, ge=1, le=336),  # Default 7 days for fading
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get fading meta trends (>10% sustained decrease over 7 days).
 
     These traits show sustained decline and may indicate
-    meta shifting away. Consider selling or avoiding these traits.
+    meta shifting away.
     """
-    shifts = await get_meta_cache("meta:fading")
+    aggregator = await get_meta_aggregator(db)
 
-    if not shifts:
-        return {
-            "success": True,
-            "data": [],
-            "meta": {
-                "count": 0,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-        }
-
-    shifts = [s for s in shifts if s.get("confidence", 0) >= min_confidence]
-    shifts = shifts[:limit]
+    shifts = await aggregator.get_shifts_by_type(
+        shift_type="fading",
+        min_confidence=min_confidence,
+        limit=limit,
+        hours=hours,
+        use_cache=use_cache,
+    )
 
     return {
         "success": True,
@@ -394,38 +606,47 @@ async def get_fading_meta(
             "count": len(shifts),
             "shift_type": "fading",
             "min_confidence": min_confidence,
-            "timestamp": datetime.utcnow().isoformat(),
+            "hours": hours,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     }
 
 
 @router.get("/health")
-async def meta_cache_health():
+async def meta_health(
+    db: AsyncSession = Depends(get_db),
+):
     """
-    Check meta cache health status.
+    Check meta service health status.
 
-    Returns connection status and availability of meta data.
+    Returns connection status for both database and Redis.
     """
-    client = await get_redis_client()
+    # Check Redis
+    redis_client = await get_redis_client()
+    redis_available = redis_client is not None
 
-    if not client:
-        return {
-            "success": True,
-            "data": {
-                "redis_available": False,
-                "message": "Redis not available or not configured",
-            }
-        }
+    redis_summary = None
+    if redis_available:
+        redis_summary = await get_meta_cache("meta:summary")
 
-    # Check for meta data presence
-    summary = await get_meta_cache("meta:summary")
+    # Check database via aggregator
+    db_available = False
+    db_shift_count = 0
+    try:
+        aggregator = await get_meta_aggregator(db)
+        result = await aggregator.get_all_shifts(limit=1, hours=24)
+        db_available = True
+        db_shift_count = result.get("total", 0)
+    except Exception:
+        pass
 
     return {
         "success": True,
         "data": {
-            "redis_available": True,
-            "meta_data_present": summary is not None,
-            "last_analysis": summary.get("timestamp") if summary else None,
-            "total_shifts": summary.get("total_shifts") if summary else 0,
+            "redis_available": redis_available,
+            "redis_meta_present": redis_summary is not None,
+            "redis_last_analysis": redis_summary.get("timestamp") if redis_summary else None,
+            "database_available": db_available,
+            "database_shifts_24h": db_shift_count,
         }
     }
