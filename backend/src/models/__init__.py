@@ -3,6 +3,7 @@
 from .database import Base, engine, get_db, get_session, init_db, close_db
 from .axie import Axie, Part, AxiePart, Ability, AxieClass, PartType, GeneType
 from .market import Listing, Sale, PriceHistory, PriceSnapshot, MarketStats
+from .meta import MetaShift, ShiftType
 from .wallet import Wallet, WalletHolding
 from .breeding import BreedingPair, Breed
 from .auth import AuthChallenge
@@ -33,6 +34,9 @@ __all__ = [
     "PriceHistory",
     "PriceSnapshot",
     "MarketStats",
+    # Meta models
+    "MetaShift",
+    "ShiftType",
     # Wallet models
     "Wallet",
     "WalletHolding",

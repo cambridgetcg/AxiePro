@@ -6,7 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { metaApi } from '@/lib/api/meta';
 import { config } from '@/lib/config';
-import type { MetaSummaryResponse, MetaShiftsResponse, ShiftType } from '@/types/meta';
+import type { MetaSummaryResponse, MetaShiftsResponse, TraitHistoryResponse, ShiftType } from '@/types/meta';
 
 /**
  * Query key factory for meta shifts.
@@ -142,9 +142,9 @@ export function useTraitMeta(
   traitKey: string,
   options?: { enabled?: boolean }
 ) {
-  return useQuery<MetaShiftsResponse>({
+  return useQuery<TraitHistoryResponse>({
     queryKey: metaKeys.trait(traitKey),
-    queryFn: () => metaApi.getTraitShift(traitKey),
+    queryFn: () => metaApi.getTraitHistory(traitKey),
     staleTime: config.defaultStaleTime,
     enabled: options?.enabled ?? true,
   });
