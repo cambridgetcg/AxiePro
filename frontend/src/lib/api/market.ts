@@ -1,7 +1,7 @@
 /**
  * Market API functions.
  *
- * Provides typed functions for all market endpoints.
+ * Provides typed functions for all market endpoints including analytics.
  */
 import { apiClient } from './client';
 import type {
@@ -11,6 +11,10 @@ import type {
   FloorPricesByClassResponse,
   SalesParams,
   ListingsParams,
+  MarketSummaryResponse,
+  AnalyticsFloorPricesResponse,
+  PriceHistoryResponse,
+  ClassPriceHistoryResponse,
 } from '@/types/market';
 
 /**
@@ -34,8 +38,8 @@ export const marketApi = {
    * Get market statistics for 24h, 7d, and 30d periods.
    * GET /market/stats
    */
-  getStats: (): Promise<MarketStatsResponse> =>
-    apiClient('/market/stats'),
+  getStats: (useCache = true): Promise<MarketStatsResponse> =>
+    apiClient(`/market/stats?use_cache=${useCache}`),
 
   /**
    * Get historical sales with optional filters.
@@ -61,4 +65,51 @@ export const marketApi = {
    */
   getFloorPricesByClass: (): Promise<FloorPricesByClassResponse> =>
     apiClient('/market/floor-prices'),
+
+  // =========================================================================
+  // Analytics Endpoints
+  // =========================================================================
+
+  /**
+   * Get complete market summary for the analytics dashboard.
+   * GET /market/analytics/summary
+   */
+  getSummary: (useCache = true): Promise<MarketSummaryResponse> =>
+    apiClient(`/market/analytics/summary?use_cache=${useCache}`),
+
+  /**
+   * Get floor prices by class with 24h change.
+   * GET /market/analytics/floor-prices
+   */
+  getAnalyticsFloorPrices: (useCache = true): Promise<AnalyticsFloorPricesResponse> =>
+    apiClient(`/market/analytics/floor-prices?use_cache=${useCache}`),
+
+  /**
+   * Get price history time-series for a trait.
+   * GET /market/analytics/price-history
+   */
+  getPriceHistory: (params: {
+    traitKey: string;
+    interval?: string;
+    limit?: number;
+    useCache?: boolean;
+  }): Promise<PriceHistoryResponse> => {
+    const searchParams = new URLSearchParams();
+    searchParams.set('trait_key', params.traitKey);
+    if (params.interval) searchParams.set('interval', params.interval);
+    if (params.limit) searchParams.set('limit', String(params.limit));
+    if (params.useCache !== undefined) searchParams.set('use_cache', String(params.useCache));
+    return apiClient(`/market/analytics/price-history?${searchParams.toString()}`);
+  },
+
+  /**
+   * Get price history for a specific Axie class.
+   * GET /market/analytics/class-history/{class}
+   */
+  getClassPriceHistory: (
+    axieClass: string,
+    interval = '1h',
+    limit = 100,
+  ): Promise<ClassPriceHistoryResponse> =>
+    apiClient(`/market/analytics/class-history/${axieClass}?interval=${interval}&limit=${limit}`),
 };
