@@ -15,6 +15,12 @@ import type {
   AnalyticsFloorPricesResponse,
   PriceHistoryResponse,
   ClassPriceHistoryResponse,
+  RecentSalesResponse,
+  SalesActivityResponse,
+  ClassSalesResponse,
+  HourlySalesResponse,
+  RecentSalesParams,
+  SalesActivityParams,
 } from '@/types/market';
 
 /**
@@ -112,4 +118,54 @@ export const marketApi = {
     limit = 100,
   ): Promise<ClassPriceHistoryResponse> =>
     apiClient(`/market/analytics/class-history/${axieClass}?interval=${interval}&limit=${limit}`),
+
+  // =========================================================================
+  // Sales Activity Endpoints
+  // =========================================================================
+
+  /**
+   * Get recent sales with optional class filter.
+   * GET /market/sales/recent
+   */
+  getRecentSales: (params?: RecentSalesParams): Promise<RecentSalesResponse> => {
+    const searchParams = new URLSearchParams();
+    if (params?.hours) searchParams.set('hours', String(params.hours));
+    if (params?.class) searchParams.set('class', params.class);
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.useCache !== undefined) searchParams.set('use_cache', String(params.useCache));
+    const query = searchParams.toString();
+    return apiClient(`/market/sales/recent${query ? `?${query}` : ''}`);
+  },
+
+  /**
+   * Get aggregated sales activity statistics.
+   * GET /market/sales/activity
+   */
+  getSalesActivity: (params?: SalesActivityParams): Promise<SalesActivityResponse> => {
+    const searchParams = new URLSearchParams();
+    if (params?.hours) searchParams.set('hours', String(params.hours));
+    if (params?.class) searchParams.set('class', params.class);
+    if (params?.useCache !== undefined) searchParams.set('use_cache', String(params.useCache));
+    const query = searchParams.toString();
+    return apiClient(`/market/sales/activity${query ? `?${query}` : ''}`);
+  },
+
+  /**
+   * Get detailed sales data for a specific class.
+   * GET /market/sales/class/{class}
+   */
+  getClassSales: (
+    axieClass: string,
+    hours = 24,
+    limit = 20,
+    useCache = true,
+  ): Promise<ClassSalesResponse> =>
+    apiClient(`/market/sales/class/${axieClass}?hours=${hours}&limit=${limit}&use_cache=${useCache}`),
+
+  /**
+   * Get hourly sales distribution for time-series visualization.
+   * GET /market/sales/hourly
+   */
+  getHourlySales: (hours = 24, useCache = true): Promise<HourlySalesResponse> =>
+    apiClient(`/market/sales/hourly?hours=${hours}&use_cache=${useCache}`),
 };

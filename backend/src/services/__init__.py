@@ -15,6 +15,21 @@ from .meta_aggregator import (
     TrendingTrait,
     TraitHistoryPoint,
 )
+from .deals_aggregator import (
+    DealsAggregatorService,
+    get_deals_aggregator,
+    DetectedDealData,
+    DealsSummaryData,
+    ClassDealsData,
+    DealStatsData,
+)
+from .sales_aggregator import (
+    SalesAggregatorService,
+    get_sales_aggregator,
+    RecentSaleData,
+    SalesActivityData,
+    ClassSalesData,
+)
 
 __all__ = [
     "GoldrushClient",
@@ -32,4 +47,17 @@ __all__ = [
     "ClassMetaData",
     "TrendingTrait",
     "TraitHistoryPoint",
+    # Deals aggregator
+    "DealsAggregatorService",
+    "get_deals_aggregator",
+    "DetectedDealData",
+    "DealsSummaryData",
+    "ClassDealsData",
+    "DealStatsData",
+    # Sales aggregator
+    "SalesAggregatorService",
+    "get_sales_aggregator",
+    "RecentSaleData",
+    "SalesActivityData",
+    "ClassSalesData",
 ]

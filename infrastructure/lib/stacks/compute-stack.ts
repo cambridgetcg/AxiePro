@@ -38,7 +38,9 @@ export interface ComputeStackProps extends cdk.StackProps {
   redisEndpoint: string;
   redisPort: number;
   secretsArn: string;
+  databaseSecretsArn: string;  // Database credentials secret
   kmsKey: kms.IKey;
+  secretsKey: kms.IKey;  // KMS key for secrets decryption
   dataBucket: s3.IBucket;
   listingsStream: kinesis.IStream;
   dealAlertsTopic: sns.ITopic;
@@ -75,7 +77,9 @@ export class ComputeStack extends cdk.Stack {
       redisEndpoint,
       redisPort,
       secretsArn,
+      databaseSecretsArn,
       kmsKey,
+      secretsKey,
       dataBucket,
       listingsStream,
       dealAlertsTopic,
@@ -304,11 +308,17 @@ export class ComputeStack extends cdk.Stack {
           'secretsmanager:GetSecretValue',
           'secretsmanager:DescribeSecret',
         ],
-        resources: [secretsArn, `${secretsArn}*`],
+        resources: [
+          secretsArn,
+          `${secretsArn}*`,
+          databaseSecretsArn,
+          `${databaseSecretsArn}*`,
+        ],
       })
     );
 
     kmsKey.grantDecrypt(lambdaRole);
+    secretsKey.grantDecrypt(lambdaRole);  // Grant access to secrets KMS key
     dataBucket.grantReadWrite(lambdaRole);
     listingsStream.grantRead(lambdaRole);
     listingsStream.grantWrite(lambdaRole);
@@ -321,6 +331,7 @@ export class ComputeStack extends cdk.Stack {
       AWS_REGION_NAME: config.region,
       USE_AWS_SECRETS: 'true',
       AWS_SECRET_NAME: secretsArn,
+      DATABASE_SECRET_NAME: databaseSecretsArn,  // Database credentials
       DATABASE_HOST: databaseCluster.clusterEndpoint.hostname,
       DATABASE_PORT: DB_PORT.toString(),
       DATABASE_NAME: DB_NAME,
@@ -367,7 +378,29 @@ export class ComputeStack extends cdk.Stack {
     });
     this.lambdaFunctions['priceIngestion'] = priceIngestionLambda;
 
-    // 2. Deal Detector Lambda (triggered by Kinesis)
+    // 2. Sales Ingestion Lambda
+    const salesIngestionLambda = new lambda.Function(this, 'SalesIngestionLambda', {
+      functionName: getResourceName('sales-ingestion', config),
+      description: 'Fetches settled sales from Sky Mavis and stores in database',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'src.lambdas.sales_ingestion.handler',
+      code: lambda.Code.fromAsset('../backend'),
+      layers: [dependenciesLayer],
+      memorySize: config.compute.lambda.memorySize,
+      timeout: cdk.Duration.minutes(3), // Longer timeout for pagination
+      role: lambdaRole,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSecurityGroup],
+      environment: lambdaEnv,
+      tracing: config.monitoring.enableXRay
+        ? lambda.Tracing.ACTIVE
+        : lambda.Tracing.DISABLED,
+      reservedConcurrentExecutions: config.compute.lambda.reservedConcurrency,
+    });
+    this.lambdaFunctions['salesIngestion'] = salesIngestionLambda;
+
+    // 3. Deal Detector Lambda (triggered by Kinesis)
     const dealDetectorLambda = new lambda.Function(this, 'DealDetectorLambda', {
       functionName: getResourceName('deal-detector', config),
       description: 'Detects undervalued listings from Kinesis stream',
@@ -400,7 +433,7 @@ export class ComputeStack extends cdk.Stack {
       })
     );
 
-    // 3. Meta Analyzer Lambda
+    // 4. Meta Analyzer Lambda
     const metaAnalyzerLambda = new lambda.Function(this, 'MetaAnalyzerLambda', {
       functionName: getResourceName('meta-analyzer', config),
       description: 'Analyzes market trends and detects meta shifts',
@@ -421,7 +454,7 @@ export class ComputeStack extends cdk.Stack {
     });
     this.lambdaFunctions['metaAnalyzer'] = metaAnalyzerLambda;
 
-    // 4. Valuation Lambda
+    // 5. Valuation Lambda
     const valuationLambda = new lambda.Function(this, 'ValuationLambda', {
       functionName: getResourceName('valuation', config),
       description: 'Computes fair value estimates for Axies',
@@ -452,6 +485,14 @@ export class ComputeStack extends cdk.Stack {
       description: 'Triggers price ingestion every 5 minutes',
       schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
       targets: [new targets.LambdaFunction(priceIngestionLambda)],
+    });
+
+    // Sales ingestion - every 15 minutes
+    new events.Rule(this, 'SalesIngestionSchedule', {
+      ruleName: getResourceName('sales-ingestion-trigger', config),
+      description: 'Triggers sales ingestion every 15 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(15)),
+      targets: [new targets.LambdaFunction(salesIngestionLambda)],
     });
 
     // Meta analysis - every hour
@@ -500,6 +541,12 @@ export class ComputeStack extends cdk.Stack {
       value: dealDetectorLambda.functionArn,
       description: 'Deal detector Lambda ARN',
       exportName: `${id}-DealDetectorLambdaArn`,
+    });
+
+    new cdk.CfnOutput(this, 'SalesIngestionLambdaArn', {
+      value: salesIngestionLambda.functionArn,
+      description: 'Sales ingestion Lambda ARN',
+      exportName: `${id}-SalesIngestionLambdaArn`,
     });
 
     // Add tags

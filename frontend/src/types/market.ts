@@ -116,18 +116,37 @@ export interface ClassPriceHistoryResponse {
 }
 
 /**
- * Individual sale record.
+ * Individual sale record from /market/sales endpoint.
  */
 export interface Sale {
-  tx_hash: string;
+  id: number;
   axie_id: number;
-  class: AxieClass;
-  price_eth: number;
-  price_usd: number;
   seller: string;
   buyer: string;
-  timestamp: string;
-  block_number: number;
+  price_eth: number;
+  price_usd: number | null;
+  sold_at: string;
+  tx_hash: string;
+  axie?: {
+    class: string;
+    purity: number;
+  };
+}
+
+/**
+ * Recent sale record from /market/sales/recent endpoint.
+ */
+export interface RecentSale {
+  id: number;
+  axie_id: number;
+  class_: string;
+  price_eth: number;
+  price_usd: number | null;
+  seller_address: string;
+  buyer_address: string;
+  tx_hash: string;
+  sold_at: string;
+  marketplace: string;
 }
 
 /**
@@ -212,4 +231,133 @@ export interface ListingsParams {
   perPage?: number;
   sort?: 'price' | 'listed_at';
   order?: 'asc' | 'desc';
+}
+
+// =============================================================================
+// Sales Activity Types
+// =============================================================================
+
+/**
+ * Recent sales response from GET /market/sales/recent
+ */
+export interface RecentSalesResponse {
+  success: boolean;
+  data: RecentSale[];
+  meta: {
+    hours: number;
+    class_filter: string | null;
+    count: number;
+    source: 'cache' | 'database';
+    timestamp: string;
+  };
+}
+
+/**
+ * Class sales breakdown for activity stats.
+ */
+export interface ClassSalesBreakdown {
+  sales_count: number;
+  volume_eth: number;
+  avg_price_eth: number;
+}
+
+/**
+ * Sales activity statistics.
+ */
+export interface SalesActivity {
+  period_hours: number;
+  total_sales: number;
+  total_volume_eth: number;
+  avg_price_eth: number;
+  median_price_eth: number;
+  min_price_eth: number | null;
+  max_price_eth: number | null;
+  unique_buyers: number;
+  unique_sellers: number;
+  sales_per_hour: number;
+  by_class: Record<string, ClassSalesBreakdown>;
+}
+
+/**
+ * Sales activity response from GET /market/sales/activity
+ */
+export interface SalesActivityResponse {
+  success: boolean;
+  data: SalesActivity;
+  meta: {
+    hours: number;
+    class_filter: string | null;
+    source: 'cache' | 'database';
+    timestamp: string;
+  };
+}
+
+/**
+ * Class-specific sales data.
+ */
+export interface ClassSales {
+  class_: string;
+  period_hours: number;
+  total_sales: number;
+  total_volume_eth: number;
+  avg_price_eth: number;
+  recent_sales: RecentSale[];
+}
+
+/**
+ * Class sales response from GET /market/sales/class/{class}
+ */
+export interface ClassSalesResponse {
+  success: boolean;
+  data: ClassSales;
+  meta: {
+    class: string;
+    hours: number;
+    source: 'cache' | 'database';
+    timestamp: string;
+  };
+}
+
+/**
+ * Hourly sales distribution point for time-series.
+ */
+export interface HourlySalesPoint {
+  hour: string;
+  sales_count: number;
+  volume_eth: number;
+  avg_price_eth: number;
+}
+
+/**
+ * Hourly sales distribution response from GET /market/sales/hourly
+ */
+export interface HourlySalesResponse {
+  success: boolean;
+  data: {
+    hours: number;
+    distribution: HourlySalesPoint[];
+  };
+  meta: {
+    source: 'cache' | 'database';
+    timestamp: string;
+  };
+}
+
+/**
+ * Parameters for fetching recent sales.
+ */
+export interface RecentSalesParams {
+  hours?: number;
+  class?: string;
+  limit?: number;
+  useCache?: boolean;
+}
+
+/**
+ * Parameters for fetching sales activity.
+ */
+export interface SalesActivityParams {
+  hours?: number;
+  class?: string;
+  useCache?: boolean;
 }
