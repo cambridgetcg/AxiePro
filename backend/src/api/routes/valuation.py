@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import get_db
@@ -574,13 +575,15 @@ async def get_floor_prices(
     Get current floor prices by class.
 
     Returns the lowest listed price for each Axie class.
+    Data is sourced from the price_snapshots table populated by
+    the price_ingestion lambda every 5 minutes.
     """
     import logging
     logger = logging.getLogger(__name__)
 
     cache = await get_cache_manager()
 
-    # Try cache first
+    # Try cache first (TTL: 5 minutes)
     if cache.is_connected:
         try:
             floors = await cache.get_all_floor_prices()
@@ -593,8 +596,61 @@ async def get_floor_prices(
         except Exception as e:
             logger.warning(f"Cache read failed for floor prices: {e}")
 
-    # Compute floor prices
+    # Query latest floor prices from price_snapshots table
+    # This table is populated by the price_ingestion lambda every 5 minutes
     try:
+        # Get the most recent floor price for each class
+        # Using DISTINCT ON to get the latest snapshot per class
+        query = text("""
+            SELECT DISTINCT ON (class)
+                class,
+                floor_eth,
+                time as snapshot_time
+            FROM price_snapshots
+            WHERE trait_key LIKE 'class:%'
+              AND floor_eth IS NOT NULL
+              AND time >= NOW() - INTERVAL '1 hour'
+            ORDER BY class, time DESC
+        """)
+
+        result = await db.execute(query)
+        rows = result.fetchall()
+
+        floors = {}
+        latest_snapshot = None
+
+        for row in rows:
+            class_name = row.class_.lower() if hasattr(row, 'class_') else row[0].lower()
+            floor_eth = float(row.floor_eth) if hasattr(row, 'floor_eth') else float(row[1])
+            snapshot_time = row.snapshot_time if hasattr(row, 'snapshot_time') else row[2]
+
+            if floor_eth and floor_eth > 0:
+                floors[class_name] = floor_eth
+
+                # Track the most recent snapshot time
+                if latest_snapshot is None or snapshot_time > latest_snapshot:
+                    latest_snapshot = snapshot_time
+
+                # Update cache for each class
+                if cache.is_connected:
+                    try:
+                        await cache.set_floor_price(class_name, floor_eth)
+                    except Exception as cache_error:
+                        logger.warning(f"Failed to cache floor price for {class_name}: {cache_error}")
+
+        if floors:
+            return {
+                "success": True,
+                "data": floors,
+                "meta": {
+                    "source": "price_snapshots",
+                    "snapshot_time": latest_snapshot.isoformat() if latest_snapshot else None,
+                    "classes_found": len(floors),
+                }
+            }
+
+        # Fallback: If no recent snapshots, try computing from sales data
+        logger.warning("No recent price snapshots found, falling back to sales data")
         service = HedonicValuationService(db)
         stats = await service.compute_trait_statistics(time_window_hours=24)
 
@@ -604,7 +660,6 @@ async def get_floor_prices(
                 class_name = key.split(":")[1]
                 if stat.min_price_eth:
                     floors[class_name] = float(stat.min_price_eth)
-                    # Cache individual floors
                     if cache.is_connected:
                         try:
                             await cache.set_floor_price(class_name, float(stat.min_price_eth))
@@ -614,10 +669,14 @@ async def get_floor_prices(
         return {
             "success": True,
             "data": floors,
-            "meta": {"source": "computed"}
+            "meta": {
+                "source": "computed_fallback",
+                "message": "Using sales-based computation as fallback"
+            }
         }
+
     except Exception as e:
-        logger.error(f"Failed to compute floor prices: {e}")
+        logger.error(f"Failed to get floor prices: {e}")
         # Return empty data gracefully instead of 500 error
         return {
             "success": True,
