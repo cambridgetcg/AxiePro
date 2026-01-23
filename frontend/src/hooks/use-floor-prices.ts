@@ -17,12 +17,18 @@ export const floorPricesKeys = {
 /**
  * Hook to fetch current floor prices by class.
  *
+ * Auto-refreshes every 60 seconds for near real-time updates.
+ * Floor prices are updated by the backend every 5 minutes via
+ * the price_ingestion pipeline.
+ *
  * @returns Query result with floor prices map
  */
 export function useFloorPrices() {
   return useQuery<FloorPricesResponse>({
     queryKey: floorPricesKeys.all,
     queryFn: () => valuationApi.getFloorPrices(),
-    staleTime: 5 * 60_000, // 5 minutes
+    staleTime: 60_000, // 1 minute - consider data stale after 1 min
+    refetchInterval: 60_000, // Auto-refresh every 60 seconds
+    refetchIntervalInBackground: false, // Don't poll when tab is inactive
   });
 }
