@@ -19,6 +19,7 @@ from src.models import get_db
 from src.services.valuation import HedonicValuationService, ValuationResult
 from src.services.cache import get_cache_manager, RedisCacheManager
 from src.services.scoring import NormalizedDealScorer
+from src.services.deals_aggregator import DealsAggregatorService, get_deals_aggregator
 
 router = APIRouter(prefix="/valuation", tags=["valuation"])
 
@@ -131,6 +132,8 @@ class TraitStatsResponse(BaseModel):
 
 class ModelStatsResponse(BaseModel):
     """Response for model statistics."""
+    model_config = {"protected_namespaces": ()}
+
     model_version: str
     r_squared: float
     adj_r_squared: float
@@ -264,12 +267,16 @@ async def get_live_deals(
     class_: Optional[str] = Query(None, alias="class", description="Filter by Axie class"),
     min_score: int = Query(50, ge=0, le=100, description="Minimum deal score"),
     limit: int = Query(20, ge=1, le=100),
+    hours: int = Query(24, ge=1, le=168, description="Look back period in hours"),
     include_normalized: bool = Query(True, description="Include normalized scoring"),
+    use_cache: bool = Query(True, description="Use cached results if available"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get current deal opportunities with normalized scoring.
 
     Deals are listings priced significantly below their estimated fair value.
+    Uses database queries with Redis caching for efficient access.
 
     **Legacy Scoring (deal_score):**
     - Deal (50-79): 20-40% below FMV
@@ -284,18 +291,14 @@ async def get_live_deals(
 
     Results are sorted by deal score (best deals first).
     """
-    cache = await get_cache_manager()
+    aggregator = await get_deals_aggregator(db)
 
-    if not cache.is_connected:
-        raise HTTPException(
-            status_code=503,
-            detail="Deal detection requires Redis cache"
-        )
-
-    deals = await cache.get_top_deals(
-        limit=limit,
+    deals = await aggregator.get_live_deals(
         axie_class=class_,
         min_score=min_score,
+        limit=limit,
+        hours=hours,
+        use_cache=use_cache,
     )
 
     # Add normalized scoring if requested
@@ -321,6 +324,8 @@ async def get_live_deals(
             "count": len(deals),
             "min_score": min_score,
             "class_filter": class_,
+            "hours": hours,
+            "source": "database",
             "scoring_version": "2.0" if include_normalized else "1.0",
             "timestamp": datetime.utcnow().isoformat(),
         }
@@ -330,27 +335,29 @@ async def get_live_deals(
 @router.get("/deals/snipes", response_model=DealsListResponse)
 async def get_snipe_opportunities(
     limit: int = Query(20, ge=1, le=50),
+    hours: int = Query(24, ge=1, le=168, description="Look back period in hours"),
     include_normalized: bool = Query(True, description="Include normalized scoring"),
+    use_cache: bool = Query(True, description="Use cached results if available"),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get top snipe opportunities (high-value deals) with normalized scoring.
 
     Snipes are extremely undervalued listings (40%+ below FMV)
     that represent the best buying opportunities.
+    Uses database queries with Redis caching for efficient access.
 
     **Tier System:**
     - SNIPE tier deals have normalized_score 80-100
     - Time-sensitive: score decays based on listing freshness
     """
-    cache = await get_cache_manager()
+    aggregator = await get_deals_aggregator(db)
 
-    if not cache.is_connected:
-        raise HTTPException(
-            status_code=503,
-            detail="Snipe detection requires Redis cache"
-        )
-
-    snipes = await cache.get_snipes(limit=limit)
+    snipes = await aggregator.get_snipes(
+        limit=limit,
+        hours=hours,
+        use_cache=use_cache,
+    )
 
     # Add normalized scoring if requested
     if include_normalized and snipes:
@@ -373,7 +380,145 @@ async def get_snipe_opportunities(
         "data": snipes,
         "meta": {
             "count": len(snipes),
+            "hours": hours,
+            "source": "database",
             "scoring_version": "2.0" if include_normalized else "1.0",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    }
+
+
+@router.get("/deals/summary")
+async def get_deals_summary(
+    use_cache: bool = Query(True, description="Use cached results if available"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get comprehensive deals summary.
+
+    Returns:
+    - Total deal counts (overall and active)
+    - Breakdown by Axie class
+    - Average discount and score
+    - Top deals and snipe opportunities
+    """
+    aggregator = await get_deals_aggregator(db)
+    summary = await aggregator.get_deals_summary(use_cache=use_cache)
+
+    return {
+        "success": True,
+        "data": summary,
+        "meta": {
+            "source": "database",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    }
+
+
+@router.get("/deals/stats")
+async def get_deals_stats(
+    hours: int = Query(24, ge=1, le=168, description="Period in hours"),
+    use_cache: bool = Query(True, description="Use cached results if available"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get aggregated deal statistics.
+
+    Returns metrics including:
+    - Total deals detected and sold
+    - Average time to sell
+    - Average discount and score
+    - Snipe rate percentage
+    """
+    aggregator = await get_deals_aggregator(db)
+    stats = await aggregator.get_deal_stats(hours=hours, use_cache=use_cache)
+
+    return {
+        "success": True,
+        "data": stats,
+        "meta": {
+            "hours": hours,
+            "source": "database",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    }
+
+
+@router.get("/deals/class/{axie_class}")
+async def get_class_deals(
+    axie_class: str,
+    hours: int = Query(24, ge=1, le=168, description="Look back period in hours"),
+    use_cache: bool = Query(True, description="Use cached results if available"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get deal analysis for a specific Axie class.
+
+    Returns:
+    - Total and active deal counts for the class
+    - Average discount and score
+    - Recent deals for the class
+    """
+    aggregator = await get_deals_aggregator(db)
+    data = await aggregator.get_class_deals(
+        axie_class=axie_class,
+        hours=hours,
+        use_cache=use_cache,
+    )
+
+    return {
+        "success": True,
+        "data": data,
+        "meta": {
+            "class": axie_class.lower(),
+            "hours": hours,
+            "source": "database",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    }
+
+
+@router.get("/deals/axie/{axie_id}")
+async def get_axie_deal(
+    axie_id: int,
+    include_history: bool = Query(False, description="Include deal history"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get deal information for a specific Axie.
+
+    Returns the most recent deal detection for the Axie.
+    Optionally includes historical deal detections.
+    """
+    aggregator = await get_deals_aggregator(db)
+
+    if include_history:
+        history = await aggregator.get_deal_history(axie_id)
+        return {
+            "success": True,
+            "data": history,
+            "meta": {
+                "axie_id": axie_id,
+                "count": len(history),
+                "source": "database",
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        }
+
+    deal = await aggregator.get_deal_by_axie(axie_id)
+
+    if not deal:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No deal found for Axie {axie_id}"
+        )
+
+    return {
+        "success": True,
+        "data": deal,
+        "meta": {
+            "axie_id": axie_id,
+            "source": "database",
             "timestamp": datetime.utcnow().isoformat(),
         }
     }

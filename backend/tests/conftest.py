@@ -1,11 +1,13 @@
 """
-Shared pytest fixtures for auth testing.
+AxiePro Test Suite - Shared Fixtures
 
 Provides:
 - Async database session (in-memory SQLite)
-- FastAPI test client
-- Test wallet with known private key for signing
+- FastAPI test client with dependency overrides
+- Redis mock (fakeredis)
+- Test wallets with known private keys for signing
 - Helper functions for signature generation
+- Authentication fixtures for protected endpoints
 """
 
 import asyncio
@@ -22,6 +24,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from src.main import app
 from src.models.database import Base
 from src.models import get_db
+
+# Try to import fakeredis for Redis mocking
+try:
+    import fakeredis.aioredis as fake_aioredis
+    FAKEREDIS_AVAILABLE = True
+except ImportError:
+    FAKEREDIS_AVAILABLE = False
 
 
 # =============================================================================
@@ -210,3 +219,119 @@ def other_wallet_address() -> str:
 def other_wallet_private_key() -> str:
     """Return a different wallet private key."""
     return TEST_WALLET_PRIVATE_KEY_2
+
+
+# =============================================================================
+# Redis Mock Fixtures
+# =============================================================================
+
+@pytest_asyncio.fixture
+async def redis_mock():
+    """
+    Provide a fake Redis client for cache testing.
+
+    Returns a fakeredis instance that behaves like a real Redis
+    but stores everything in memory.
+    """
+    if not FAKEREDIS_AVAILABLE:
+        pytest.skip("fakeredis not installed")
+
+    redis = fake_aioredis.FakeRedis(decode_responses=True)
+    yield redis
+    await redis.aclose()
+
+
+# =============================================================================
+# Enhanced Client Fixtures
+# =============================================================================
+
+@pytest_asyncio.fixture
+async def authenticated_client(client: AsyncClient, auth_headers: dict) -> AsyncClient:
+    """
+    Return a client pre-configured with authentication headers.
+
+    Usage:
+        async def test_protected_endpoint(authenticated_client):
+            response = await authenticated_client.get("/api/v1/protected")
+            assert response.status_code == 200
+    """
+    client.headers.update(auth_headers)
+    return client
+
+
+# =============================================================================
+# Factory Fixtures
+# =============================================================================
+
+@pytest.fixture
+def axie_factory():
+    """
+    Provide AxieFactory for creating test Axie data.
+
+    Usage:
+        def test_something(axie_factory):
+            axie = axie_factory.create(class_name="Beast", purity=6)
+            axies = axie_factory.create_batch(5, class_name="Plant")
+    """
+    from tests.factories import AxieFactory
+    return AxieFactory
+
+
+@pytest.fixture
+def listing_factory():
+    """Provide ListingFactory for creating test listing data."""
+    from tests.factories import ListingFactory
+    return ListingFactory
+
+
+@pytest.fixture
+def sale_factory():
+    """Provide SaleFactory for creating test sale data."""
+    from tests.factories import SaleFactory
+    return SaleFactory
+
+
+@pytest.fixture
+def wallet_factory():
+    """Provide WalletFactory for creating test wallet addresses."""
+    from tests.factories import WalletFactory
+    return WalletFactory
+
+
+# =============================================================================
+# Utility Fixtures
+# =============================================================================
+
+@pytest.fixture
+def freeze_time():
+    """
+    Fixture for freezing time in tests.
+
+    Usage:
+        def test_expiration(freeze_time):
+            with freeze_time("2024-01-01 12:00:00"):
+                # Time is frozen here
+                pass
+    """
+    try:
+        from freezegun import freeze_time as ft
+        return ft
+    except ImportError:
+        pytest.skip("freezegun not installed")
+
+
+@pytest.fixture
+def faker_instance():
+    """
+    Provide a Faker instance for generating random test data.
+
+    Usage:
+        def test_something(faker_instance):
+            name = faker_instance.name()
+            address = faker_instance.ethereum_address()
+    """
+    try:
+        from faker import Faker
+        return Faker()
+    except ImportError:
+        pytest.skip("faker not installed")
