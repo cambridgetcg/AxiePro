@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Activity } from 'lucide-react';
-import { useSales } from '@/hooks/use-market-stats';
+import { useRecentSales } from '@/hooks/use-market-stats';
 import {
   AreaChart,
   Area,
@@ -23,7 +23,7 @@ interface RecentSalesChartProps {
 }
 
 export function RecentSalesChart({ className }: RecentSalesChartProps) {
-  const { data, isLoading, isError } = useSales({ perPage: 100 });
+  const { data, isLoading, isError } = useRecentSales({ hours: 24, limit: 200 });
 
   // Transform sales data into time-series for chart
   const chartData = useMemo(() => {
@@ -33,7 +33,7 @@ export function RecentSalesChart({ className }: RecentSalesChartProps) {
     const hourlyData: Record<string, { prices: number[]; count: number }> = {};
 
     data.data.forEach((sale) => {
-      const date = new Date(sale.timestamp);
+      const date = new Date(sale.sold_at);
       const hourKey = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:00`;
 
       if (!hourlyData[hourKey]) {

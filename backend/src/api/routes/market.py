@@ -22,6 +22,10 @@ from src.services.market_aggregator import (
     MarketAggregatorService,
     get_market_aggregator,
 )
+from src.services.sales_aggregator import (
+    SalesAggregatorService,
+    get_sales_aggregator,
+)
 from src.services.cache import get_cache_manager
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -508,5 +512,156 @@ async def get_class_price_history(
             "class": axie_class.lower(),
             "interval": interval,
             "points": history,
+        },
+    }
+
+
+# =============================================================================
+# Sales Activity Endpoints - Recent sales and activity statistics
+# =============================================================================
+
+@router.get("/sales/recent")
+async def get_recent_sales(
+    hours: int = Query(24, ge=1, le=168, description="Hours to look back (max 7 days)"),
+    class_: Optional[str] = Query(None, alias="class"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of sales"),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get recent sales with optional class filter.
+
+    Optimized endpoint for dashboard recent sales display.
+    Uses Redis caching for fast repeated access.
+    """
+    # Validate class if provided
+    if class_:
+        try:
+            AxieClass(class_.lower())
+        except ValueError:
+            raise HTTPException(400, f"Invalid class: {class_}")
+
+    aggregator = await get_sales_aggregator(db)
+    sales = await aggregator.get_recent_sales(
+        hours=hours,
+        axie_class=class_,
+        limit=limit,
+        use_cache=use_cache,
+    )
+
+    return {
+        "success": True,
+        "data": sales,
+        "meta": {
+            "hours": hours,
+            "class_filter": class_,
+            "count": len(sales),
+            "source": "cache" if use_cache else "database",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    }
+
+
+@router.get("/sales/activity")
+async def get_sales_activity(
+    hours: int = Query(24, ge=1, le=168, description="Hours to analyze"),
+    class_: Optional[str] = Query(None, alias="class"),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get aggregated sales activity statistics.
+
+    Returns volume, average price, unique traders, and breakdown by class.
+    """
+    if class_:
+        try:
+            AxieClass(class_.lower())
+        except ValueError:
+            raise HTTPException(400, f"Invalid class: {class_}")
+
+    aggregator = await get_sales_aggregator(db)
+    activity = await aggregator.get_sales_activity(
+        hours=hours,
+        axie_class=class_,
+        use_cache=use_cache,
+    )
+
+    return {
+        "success": True,
+        "data": activity,
+        "meta": {
+            "hours": hours,
+            "class_filter": class_,
+            "source": "cache" if use_cache else "database",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    }
+
+
+@router.get("/sales/class/{axie_class}")
+async def get_class_sales(
+    axie_class: str,
+    hours: int = Query(24, ge=1, le=168),
+    limit: int = Query(20, ge=1, le=100),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get detailed sales data for a specific Axie class.
+
+    Includes aggregated stats and recent sales for the class.
+    """
+    try:
+        AxieClass(axie_class.lower())
+    except ValueError:
+        raise HTTPException(400, f"Invalid class: {axie_class}")
+
+    aggregator = await get_sales_aggregator(db)
+    class_data = await aggregator.get_class_sales(
+        axie_class=axie_class,
+        hours=hours,
+        limit=limit,
+        use_cache=use_cache,
+    )
+
+    return {
+        "success": True,
+        "data": class_data,
+        "meta": {
+            "class": axie_class.lower(),
+            "hours": hours,
+            "source": "cache" if use_cache else "database",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    }
+
+
+@router.get("/sales/hourly")
+async def get_hourly_sales_distribution(
+    hours: int = Query(24, ge=1, le=168),
+    use_cache: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get hourly distribution of sales for time-series visualization.
+
+    Returns sales count and volume per hour for charting.
+    """
+    aggregator = await get_sales_aggregator(db)
+    distribution = await aggregator.get_hourly_sales_distribution(
+        hours=hours,
+        use_cache=use_cache,
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "hours": hours,
+            "distribution": distribution,
+        },
+        "meta": {
+            "source": "cache" if use_cache else "database",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }
