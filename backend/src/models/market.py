@@ -45,7 +45,7 @@ class Listing(Base):
     price_usd: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
 
     # Axie info (stored directly to avoid joins)
-    class_: Mapped[Optional[str]] = mapped_column("class", String(20), index=True)
+    class_: Mapped[Optional[str]] = mapped_column("class_", String(20), index=True)
     breed_count: Mapped[Optional[int]] = mapped_column(SmallInteger, default=0)
 
     # Timestamps
@@ -69,7 +69,7 @@ class Listing(Base):
         Index("idx_listings_axie", "axie_id"),
         Index("idx_listings_price", "price_eth"),
         Index("idx_listings_status_price", "status", "price_eth"),
-        Index("idx_listings_class_status_price", "class", "status", "price_eth"),
+        Index("idx_listings_class_status_price", "class_", "status", "price_eth"),
     )
 
 
