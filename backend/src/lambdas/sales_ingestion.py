@@ -4,68 +4,27 @@ Sales Ingestion Lambda
 Runs every 15 minutes to capture settled marketplace sales.
 Fetches from Sky Mavis GraphQL API and stores in Aurora PostgreSQL.
 """
-import json
-import os
+
 import asyncio
+import json
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
 
-import boto3
 import httpx
-from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 
-logger = Logger()
-tracer = Tracer()
-metrics = Metrics()
-
-# Sky Mavis GraphQL endpoint (or proxy URL if configured)
-SKYMAVIS_API = os.environ.get(
-    "AXIE_PROXY_URL",
-    "https://api-gateway.skymavis.com/graphql/marketplace"
+# Import shared utilities from common module
+from src.lambdas.common import (
+    logger,
+    tracer,
+    metrics,
+    get_secrets,
+    get_db_connection,
+    get_skymavis_endpoint,
+    get_skymavis_headers,
+    HTTP_TIMEOUT_SECONDS,
 )
-
-
-def get_secrets() -> dict:
-    """Retrieve API keys from AWS Secrets Manager."""
-    client = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
-    secret_name = os.environ.get("AWS_SECRET_NAME") or os.environ.get("SECRET_NAME")
-    if not secret_name:
-        raise RuntimeError("AWS_SECRET_NAME or SECRET_NAME environment variable not set")
-    response = client.get_secret_value(SecretId=secret_name)
-    return json.loads(response["SecretString"])
-
-
-def get_db_credentials() -> dict:
-    """Retrieve database credentials from AWS Secrets Manager."""
-    client = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
-    secret_name = os.environ.get("DATABASE_SECRET_NAME")
-    if not secret_name:
-        raise RuntimeError("DATABASE_SECRET_NAME environment variable not set")
-    response = client.get_secret_value(SecretId=secret_name)
-    return json.loads(response["SecretString"])
-
-
-def get_db_connection():
-    """Get database connection from secrets and environment variables."""
-    credentials = get_db_credentials()
-    import psycopg2
-
-    host = os.environ.get("DATABASE_HOST")
-    port = os.environ.get("DATABASE_PORT", "5432")
-    dbname = os.environ.get("DATABASE_NAME", "axiepro")
-    username = credentials.get("username")
-    password = credentials.get("password")
-
-    return psycopg2.connect(
-        host=host,
-        port=port,
-        dbname=dbname,
-        user=username,
-        password=password,
-        sslmode="require"
-    )
 
 
 # GraphQL query for recently sold axies with transfer history
@@ -91,31 +50,6 @@ query GetSettledAuctions($from: Int!, $size: Int!) {
 }
 """
 
-# Alternative query using recentlyAxiesSold
-RECENTLY_SOLD_QUERY = """
-query GetRecentlySold($from: Int!, $size: Int!) {
-  recentlyAxiesSold(from: $from, size: $size) {
-    total
-    results {
-      id
-      class
-      order {
-        currentPrice
-        currentPriceUsd
-      }
-      transferHistory {
-        timestamp
-        txHash
-        withPrice
-        withPriceUsd
-        from
-        to
-      }
-    }
-  }
-}
-"""
-
 
 @tracer.capture_method
 async def fetch_settled_sales(
@@ -131,18 +65,11 @@ async def fetch_settled_sales(
         "size": page_size,
     }
 
-    headers = {
-        "Content-Type": "application/json",
-        "Origin": "https://app.axieinfinity.com",
-        "User-Agent": "Mozilla/5.0 (compatible; AxiePro/1.0)",
-    }
-    if api_key:
-        headers["X-API-Key"] = api_key
-    if internal_secret and os.environ.get("AXIE_PROXY_URL"):
-        headers["Authorization"] = f"Bearer {internal_secret}"
+    headers = get_skymavis_headers(api_key, internal_secret)
+    endpoint = get_skymavis_endpoint()
 
     response = await client.post(
-        SKYMAVIS_API,
+        endpoint,
         json={"query": SETTLED_AUCTIONS_QUERY, "variables": variables},
         headers=headers,
     )
@@ -301,10 +228,15 @@ def handler(event, context):
         secrets = get_secrets()
         api_key = secrets.get("SKYMAVIS_API_KEY")
         internal_secret = secrets.get("INTERNAL_SECRET")
-        using_proxy = bool(os.environ.get("AXIE_PROXY_URL"))
 
-        logger.info(f"Using API key: {api_key[:8]}..." if api_key else "No API key found!")
-        logger.info(f"Using proxy: {using_proxy}, endpoint: {SKYMAVIS_API}")
+        logger.info(
+            "API configuration",
+            extra={
+                "has_api_key": bool(api_key),
+                "api_key_prefix": api_key[:8] if api_key else None,
+                "endpoint": get_skymavis_endpoint(),
+            },
+        )
 
         total_inserted = 0
         total_fetched = 0
@@ -316,7 +248,7 @@ def handler(event, context):
             cutoff = get_cutoff_timestamp(conn)
             logger.info(f"Fetching sales since {cutoff}")
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
                 page_from = 0
 
                 while pages_fetched < max_pages:
@@ -377,7 +309,7 @@ def handler(event, context):
             "pages_fetched": pages_fetched,
         }
 
-    result = asyncio.get_event_loop().run_until_complete(ingest())
+    result = asyncio.run(ingest())
 
     metrics.add_metric(name="SalesFetched", unit=MetricUnit.Count, value=result["total_fetched"])
     metrics.add_metric(name="SalesInserted", unit=MetricUnit.Count, value=result["total_inserted"])

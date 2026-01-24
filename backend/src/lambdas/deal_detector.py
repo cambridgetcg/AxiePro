@@ -4,48 +4,29 @@ Deal Detector Lambda
 Triggered by Kinesis stream for real-time deal detection.
 Identifies undervalued Axies by comparing listing prices to market averages.
 """
+
+import base64
 import json
 import os
-import base64
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
 import boto3
-from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 
-logger = Logger()
-tracer = Tracer()
-metrics = Metrics()
-
-# Deal thresholds
-DEAL_THRESHOLD_PERCENT = 20  # 20% below average = deal
-SNIPE_THRESHOLD_PERCENT = 40  # 40% below = snipe opportunity
-MIN_DISCOUNT_ETH = Decimal("0.001")  # Minimum discount to qualify
-
-
-def get_secrets() -> dict:
-    """Retrieve secrets from AWS Secrets Manager."""
-    client = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
-    response = client.get_secret_value(SecretId=os.environ["SECRET_NAME"])
-    return json.loads(response["SecretString"])
-
-
-def get_db_connection():
-    """Get database connection."""
-    secrets = get_secrets()
-    import psycopg2
-    return psycopg2.connect(secrets["DATABASE_URL"])
-
-
-def get_redis_client():
-    """Get Redis client for caching."""
-    secrets = get_secrets()
-    if "REDIS_URL" not in secrets:
-        return None
-    import redis
-    return redis.from_url(secrets["REDIS_URL"])
+# Import shared utilities from common module
+from src.lambdas.common import (
+    logger,
+    tracer,
+    metrics,
+    get_db_connection,
+    get_redis_client,
+    cache_deal,
+    DEAL_THRESHOLD_PERCENT,
+    SNIPE_THRESHOLD_PERCENT,
+    NOTIFICATION_THRESHOLD_SCORE,
+)
 
 
 @tracer.capture_method
@@ -184,7 +165,7 @@ def store_deal(conn, deal: dict):
 @tracer.capture_method
 def notify_deal(deal: dict):
     """Send notification for high-value deals."""
-    if deal["deal_score"] < 70:
+    if deal["deal_score"] < NOTIFICATION_THRESHOLD_SCORE:
         return
 
     # Publish to SNS for notifications
@@ -208,33 +189,10 @@ def notify_deal(deal: dict):
     sns.publish(
         TopicArn=topic_arn,
         Message=json.dumps(message),
-        Subject=f"{'🔥 SNIPE' if deal['is_snipe'] else '💰 Deal'}: Axie #{deal['axie_id']} - {deal['discount_percent']:.1f}% off",
+        Subject=f"{'SNIPE' if deal['is_snipe'] else 'Deal'}: Axie #{deal['axie_id']} - {deal['discount_percent']:.1f}% off",
     )
 
     metrics.add_metric(name="DealNotificationsSent", unit=MetricUnit.Count, value=1)
-
-
-@tracer.capture_method
-def cache_deal(redis_client, deal: dict):
-    """Cache deal in Redis for quick frontend access."""
-    if not redis_client:
-        return
-
-    # Add to sorted set of recent deals (scored by deal_score)
-    key = f"deals:{deal['class']}"
-    redis_client.zadd(key, {json.dumps(deal): deal["deal_score"]})
-
-    # Trim to keep only top 100 deals per class
-    redis_client.zremrangebyrank(key, 0, -101)
-
-    # Also add to global snipes if applicable
-    if deal["is_snipe"]:
-        redis_client.zadd("snipes:all", {json.dumps(deal): deal["deal_score"]})
-        redis_client.zremrangebyrank("snipes:all", 0, -51)
-
-    # Set TTL on deal keys (24 hours)
-    redis_client.expire(key, 86400)
-    redis_client.expire("snipes:all", 86400)
 
 
 @logger.inject_lambda_context
@@ -268,7 +226,7 @@ def handler(event, context):
 
                     # Store, cache, and notify
                     store_deal(conn, deal)
-                    cache_deal(redis_client, deal)
+                    cache_deal(redis_client, deal, deal["class"], deal["deal_score"], deal["is_snipe"])
                     notify_deal(deal)
 
                     logger.info(f"Deal detected: Axie #{deal['axie_id']} - {deal['discount_percent']:.1f}% off")

@@ -4,38 +4,27 @@ Meta Analyzer Lambda
 Runs hourly to detect meta shifts by analyzing price velocity,
 volume changes, and trait popularity trends.
 """
+
 import json
 import os
-from datetime import datetime, timezone, timedelta
-from decimal import Decimal
+from datetime import datetime, timezone
 from typing import List, Dict, Optional
 
 import boto3
-from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 
-logger = Logger()
-tracer = Tracer()
-metrics = Metrics()
-
-# Meta shift detection thresholds
-PRICE_VELOCITY_THRESHOLD = 15  # 15% price change in 24h
-VOLUME_SPIKE_THRESHOLD = 200  # 200% volume increase
-EMERGING_META_THRESHOLD = 10  # 10% price increase over 7 days
-
-
-def get_secrets() -> dict:
-    """Retrieve secrets from AWS Secrets Manager."""
-    client = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
-    response = client.get_secret_value(SecretId=os.environ["SECRET_NAME"])
-    return json.loads(response["SecretString"])
-
-
-def get_db_connection():
-    """Get database connection."""
-    secrets = get_secrets()
-    import psycopg2
-    return psycopg2.connect(secrets["DATABASE_URL"])
+# Import shared utilities from common module
+from src.lambdas.common import (
+    logger,
+    tracer,
+    metrics,
+    get_db_connection,
+    get_redis_client,
+    cache_meta_insights,
+    PRICE_VELOCITY_THRESHOLD,
+    VOLUME_SPIKE_THRESHOLD,
+    EMERGING_META_THRESHOLD,
+)
 
 
 @tracer.capture_method
@@ -263,43 +252,6 @@ def publish_insights(shifts: List[Dict]):
     )
 
 
-@tracer.capture_method
-def cache_meta_insights(shifts: List[Dict]):
-    """Cache meta insights in Redis for quick API access."""
-    secrets = get_secrets()
-    if "REDIS_URL" not in secrets:
-        return
-
-    import redis
-    r = redis.from_url(secrets["REDIS_URL"])
-
-    # Store by shift type
-    for shift_type in ["rising", "falling", "emerging", "fading"]:
-        type_shifts = [s for s in shifts if s["shift_type"] == shift_type]
-        if type_shifts:
-            r.set(
-                f"meta:{shift_type}",
-                json.dumps(type_shifts[:20]),
-                ex=3600,  # 1 hour TTL
-            )
-
-    # Store overall summary
-    r.set(
-        "meta:summary",
-        json.dumps({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "total_shifts": len(shifts),
-            "rising": len([s for s in shifts if s["shift_type"] == "rising"]),
-            "falling": len([s for s in shifts if s["shift_type"] == "falling"]),
-            "emerging": len([s for s in shifts if s["shift_type"] == "emerging"]),
-            "fading": len([s for s in shifts if s["shift_type"] == "fading"]),
-        }),
-        ex=3600,
-    )
-
-    r.close()
-
-
 @logger.inject_lambda_context
 @tracer.capture_lambda_handler
 @metrics.log_metrics
@@ -308,6 +260,7 @@ def handler(event, context):
     logger.info("Starting meta analysis")
 
     conn = get_db_connection()
+    redis_client = get_redis_client()
 
     try:
         # Detect meta shifts
@@ -319,7 +272,17 @@ def handler(event, context):
         if shifts:
             store_meta_shifts(conn, shifts)
             publish_insights(shifts)
-            cache_meta_insights(shifts)
+
+            # Cache in Redis
+            summary = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "total_shifts": len(shifts),
+                "rising": len([s for s in shifts if s["shift_type"] == "rising"]),
+                "falling": len([s for s in shifts if s["shift_type"] == "falling"]),
+                "emerging": len([s for s in shifts if s["shift_type"] == "emerging"]),
+                "fading": len([s for s in shifts if s["shift_type"] == "fading"]),
+            }
+            cache_meta_insights(redis_client, shifts, summary)
 
         # Log metrics
         metrics.add_metric(name="MetaShiftsDetected", unit=MetricUnit.Count, value=len(shifts))
@@ -330,6 +293,8 @@ def handler(event, context):
 
     finally:
         conn.close()
+        if redis_client:
+            redis_client.close()
 
     return {
         "statusCode": 200,
