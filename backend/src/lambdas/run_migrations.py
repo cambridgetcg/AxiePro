@@ -366,10 +366,96 @@ CREATE TABLE IF NOT EXISTS trait_rankings (
 -- Index for getting latest rankings
 CREATE INDEX IF NOT EXISTS idx_trait_rankings_latest
 ON trait_rankings (class, calculated_at DESC, rank);
+""",
+    "c3d4e5f6g7h8": """
+-- Migration: c3d4e5f6g7h8 - Add 2026 partitions for price_snapshots
+-- This ensures data for 2026 can be stored
+
+DO $$
+DECLARE
+    partition_name TEXT;
+    start_date DATE;
+    end_date DATE;
+BEGIN
+    -- 2026 partitions (may already exist from previous migration, so use IF NOT EXISTS pattern)
+    FOR i IN 1..12 LOOP
+        partition_name := 'price_snapshots_2026_' || LPAD(i::TEXT, 2, '0');
+        start_date := DATE '2026-01-01' + ((i-1) || ' months')::INTERVAL;
+        end_date := DATE '2026-01-01' + (i || ' months')::INTERVAL;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = partition_name) THEN
+            EXECUTE format(
+                'CREATE TABLE %I PARTITION OF price_snapshots FOR VALUES FROM (%L) TO (%L)',
+                partition_name, start_date, end_date
+            );
+            RAISE NOTICE 'Created partition: %', partition_name;
+        ELSE
+            RAISE NOTICE 'Partition already exists: %', partition_name;
+        END IF;
+    END LOOP;
+
+    -- Also add 2027 partitions for future-proofing
+    FOR i IN 1..12 LOOP
+        partition_name := 'price_snapshots_2027_' || LPAD(i::TEXT, 2, '0');
+        start_date := DATE '2027-01-01' + ((i-1) || ' months')::INTERVAL;
+        end_date := DATE '2027-01-01' + (i || ' months')::INTERVAL;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = partition_name) THEN
+            EXECUTE format(
+                'CREATE TABLE %I PARTITION OF price_snapshots FOR VALUES FROM (%L) TO (%L)',
+                partition_name, start_date, end_date
+            );
+            RAISE NOTICE 'Created partition: %', partition_name;
+        ELSE
+            RAISE NOTICE 'Partition already exists: %', partition_name;
+        END IF;
+    END LOOP;
+END $$;
+""",
+    "d4e5f6g7h8i9": """
+-- Migration: d4e5f6g7h8i9 - Fix listings table for ingestion
+-- Remove foreign key constraint (we may not have all axies in our database)
+-- Add unique partial index for upsert logic
+
+-- Drop the foreign key constraint if it exists
+DO $$ BEGIN
+    ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_axie_id_fkey;
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+
+-- Remove NOT NULL from axie_id reference requirement (make it a soft reference)
+ALTER TABLE listings ALTER COLUMN axie_id DROP NOT NULL;
+ALTER TABLE listings ALTER COLUMN axie_id SET NOT NULL;  -- Re-add, just without FK
+
+-- Create unique partial index for active listings by axie_id
+-- This enables ON CONFLICT for upsert logic
+CREATE UNIQUE INDEX IF NOT EXISTS idx_listings_active_axie
+ON listings (axie_id)
+WHERE status = 'active';
+
+-- Add index for finding stale listings
+CREATE INDEX IF NOT EXISTS idx_listings_updated_status
+ON listings (updated_at, status)
+WHERE status = 'active';
+""",
+    "e5f6g7h8i9j0": """
+-- Migration: e5f6g7h8i9j0 - Add class column to listings
+-- The floor prices query needs class info, and joining with axies table
+-- requires axies to be populated. Store class directly in listings instead.
+
+-- Add class column
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS class_ VARCHAR(20);
+
+-- Add breed_count column for deal scoring
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS breed_count SMALLINT DEFAULT 0;
+
+-- Create index for floor price queries by class
+CREATE INDEX IF NOT EXISTS idx_listings_class_status_price
+ON listings (class_, status, price_eth)
+WHERE status = 'active';
 """
 }
 
-MIGRATION_ORDER = ["43e76aaf7374", "b7e2f3a4c5d6"]
+MIGRATION_ORDER = ["43e76aaf7374", "b7e2f3a4c5d6", "c3d4e5f6g7h8", "d4e5f6g7h8i9", "e5f6g7h8i9j0"]
 
 
 def get_current_revision(conn) -> str:

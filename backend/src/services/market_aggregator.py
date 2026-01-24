@@ -159,7 +159,8 @@ class MarketAggregatorService:
         axie_class: Optional[str] = None,
     ) -> PeriodStats:
         """Compute statistics for a time period from database."""
-        since = datetime.now(timezone.utc) - timedelta(days=days)
+        # Use utcnow() for comparison with naive datetime columns (sales.sold_at)
+        since = datetime.utcnow() - timedelta(days=days)
 
         # Build base query for sales
         sales_query = select(
@@ -281,18 +282,18 @@ class MarketAggregatorService:
             if cached:
                 return cached
 
-        # Current floor prices from listings
+        # Current floor prices from listings (using class_ column directly)
         query = (
             select(
-                Axie.class_,
+                Listing.class_,
                 func.min(Listing.price_eth).label("floor_eth"),
                 func.count(Listing.id).label("count"),
             )
-            .join(Listing, and_(
-                Listing.axie_id == Axie.id,
-                Listing.status == "active"
+            .where(and_(
+                Listing.status == "active",
+                Listing.class_.isnot(None)
             ))
-            .group_by(Axie.class_)
+            .group_by(Listing.class_)
         )
 
         result = await self.db.execute(query)
