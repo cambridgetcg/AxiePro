@@ -611,7 +611,28 @@ export class ComputeStack extends cdk.Stack {
     });
     this.lambdaFunctions['valuation'] = valuationLambda;
 
-    // 8. Health Check Lambda - monitors data freshness
+    // 8. Run Migrations Lambda - database schema management
+    const runMigrationsLambda = new lambda.Function(this, 'RunMigrationsLambda', {
+      functionName: getResourceName('run-migrations', config),
+      description: 'Runs database migrations against Aurora PostgreSQL',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'src.lambdas.run_migrations.handler',
+      code: lambdaCodeAsset,
+      layers: [dependenciesLayer],
+      memorySize: config.compute.lambda.memorySize,
+      timeout: cdk.Duration.minutes(5), // Migrations may take time
+      role: lambdaRole,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSecurityGroup],
+      environment: lambdaEnv,
+      tracing: config.monitoring.enableXRay
+        ? lambda.Tracing.ACTIVE
+        : lambda.Tracing.DISABLED,
+    });
+    this.lambdaFunctions['runMigrations'] = runMigrationsLambda;
+
+    // 9. Health Check Lambda - monitors data freshness
     const healthCheckLambda = new lambda.Function(this, 'HealthCheckLambda', {
       functionName: getResourceName('health-check', config),
       description: 'Monitors data freshness and pipeline health',
