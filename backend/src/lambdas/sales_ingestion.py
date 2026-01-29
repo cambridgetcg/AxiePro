@@ -127,16 +127,20 @@ def store_sales(conn, sales: List[Dict[str, Any]]) -> int:
     Store sales in database with deduplication.
 
     Uses ON CONFLICT DO NOTHING on tx_hash to avoid duplicates.
+    Uses savepoints to handle FK violations without aborting entire transaction.
     Returns the number of new sales inserted.
     """
     if not sales:
         return 0
 
     inserted = 0
+    fk_violations = 0
 
     with conn.cursor() as cur:
-        for sale in sales:
+        for i, sale in enumerate(sales):
             try:
+                # Use savepoint to allow recovery from FK violations
+                cur.execute(f"SAVEPOINT sale_{i}")
                 cur.execute(
                     """
                     INSERT INTO sales (
@@ -159,11 +163,24 @@ def store_sales(conn, sales: List[Dict[str, Any]]) -> int:
                 )
                 if cur.rowcount > 0:
                     inserted += 1
+                cur.execute(f"RELEASE SAVEPOINT sale_{i}")
             except Exception as e:
-                logger.error(f"Error inserting sale {sale.get('tx_hash')}: {e}")
+                # Rollback to savepoint to continue with next sale
+                cur.execute(f"ROLLBACK TO SAVEPOINT sale_{i}")
+                error_msg = str(e)
+                if "foreign key constraint" in error_msg.lower():
+                    fk_violations += 1
+                    # Only log first few FK violations to avoid log spam
+                    if fk_violations <= 3:
+                        logger.warning(f"FK violation for axie {sale.get('axie_id')} - axie not in database")
+                else:
+                    logger.error(f"Error inserting sale {sale.get('tx_hash')}: {e}")
                 continue
 
         conn.commit()
+
+    if fk_violations > 0:
+        logger.info(f"Skipped {fk_violations} sales due to missing axie metadata (FK violations)")
 
     return inserted
 

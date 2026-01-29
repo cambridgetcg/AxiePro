@@ -473,7 +473,35 @@ export class ComputeStack extends cdk.Stack {
       retryAttempts: 2,
     });
 
-    // 3. Listings Ingestion Lambda - publishes to Kinesis for deal detection
+    // 3. Metadata Ingestion Lambda - populates axies table using Moralis + SkyMavis
+    const metadataIngestionLambda = new lambda.Function(this, 'MetadataIngestionLambda', {
+      functionName: getResourceName('metadata-ingestion', config),
+      description: 'Fetches axie metadata from Moralis/SkyMavis and populates axies table',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'src.lambdas.metadata_ingestion.handler',
+      code: lambdaCodeAsset,
+      layers: [dependenciesLayer],
+      memorySize: config.compute.lambda.memorySize,
+      timeout: cdk.Duration.minutes(5), // Longer timeout for batch metadata fetching
+      role: lambdaRole,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSecurityGroup],
+      environment: lambdaEnv,
+      tracing: config.monitoring.enableXRay
+        ? lambda.Tracing.ACTIVE
+        : lambda.Tracing.DISABLED,
+      reservedConcurrentExecutions: config.compute.lambda.reservedConcurrency,
+    });
+    this.lambdaFunctions['metadataIngestion'] = metadataIngestionLambda;
+
+    // Configure DLQ for async invocations (EventBridge scheduled)
+    metadataIngestionLambda.configureAsyncInvoke({
+      onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
+      retryAttempts: 2,
+    });
+
+    // 4. Listings Ingestion Lambda - publishes to Kinesis for deal detection
     const listingsIngestionLambda = new lambda.Function(this, 'ListingsIngestionLambda', {
       functionName: getResourceName('listings-ingestion', config),
       description: 'Fetches active listings and publishes to Kinesis for deal detection',
@@ -638,6 +666,14 @@ export class ComputeStack extends cdk.Stack {
       targets: [new targets.LambdaFunction(listingsIngestionLambda)],
     });
 
+    // Metadata ingestion - every hour (backfills axie metadata)
+    new events.Rule(this, 'MetadataIngestionSchedule', {
+      ruleName: getResourceName('metadata-ingestion-trigger', config),
+      description: 'Triggers metadata ingestion every hour',
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      targets: [new targets.LambdaFunction(metadataIngestionLambda)],
+    });
+
     // Meta analysis - every hour
     new events.Rule(this, 'MetaAnalysisSchedule', {
       ruleName: getResourceName('meta-analysis-trigger', config),
@@ -698,6 +734,12 @@ export class ComputeStack extends cdk.Stack {
       value: salesIngestionLambda.functionArn,
       description: 'Sales ingestion Lambda ARN',
       exportName: `${id}-SalesIngestionLambdaArn`,
+    });
+
+    new cdk.CfnOutput(this, 'MetadataIngestionLambdaArn', {
+      value: metadataIngestionLambda.functionArn,
+      description: 'Metadata ingestion Lambda ARN',
+      exportName: `${id}-MetadataIngestionLambdaArn`,
     });
 
     new cdk.CfnOutput(this, 'ListingsIngestionLambdaArn', {
