@@ -33,32 +33,103 @@ def get_skymavis_endpoint() -> str:
 # =============================================================================
 # Deal Detection Thresholds
 # =============================================================================
+# These values can be overridden via AWS Parameter Store.
+# Use get_threshold() functions for runtime values with Parameter Store lookup.
 
-# Percentage below average to qualify as a deal
-DEAL_THRESHOLD_PERCENT = 20
+# Default values (used as fallbacks if Parameter Store is unavailable)
+_DEFAULT_DEAL_THRESHOLD_PERCENT = 20
+_DEFAULT_SNIPE_THRESHOLD_PERCENT = 40
+_DEFAULT_MIN_DISCOUNT_ETH = 0.001
+_DEFAULT_NOTIFICATION_THRESHOLD_SCORE = 70
 
-# Percentage below average to qualify as a snipe opportunity
-SNIPE_THRESHOLD_PERCENT = 40
-
-# Minimum discount in ETH to qualify as a deal
-MIN_DISCOUNT_ETH = 0.001
-
-# Minimum deal score to send notification
-NOTIFICATION_THRESHOLD_SCORE = 70
+# Backwards-compatible constants (use for static references only)
+DEAL_THRESHOLD_PERCENT = _DEFAULT_DEAL_THRESHOLD_PERCENT
+SNIPE_THRESHOLD_PERCENT = _DEFAULT_SNIPE_THRESHOLD_PERCENT
+MIN_DISCOUNT_ETH = _DEFAULT_MIN_DISCOUNT_ETH
+NOTIFICATION_THRESHOLD_SCORE = _DEFAULT_NOTIFICATION_THRESHOLD_SCORE
 
 
 # =============================================================================
 # Meta Analysis Thresholds
 # =============================================================================
+# These values can be overridden via AWS Parameter Store.
 
-# Percentage price change in 24h to signal price velocity
-PRICE_VELOCITY_THRESHOLD = 15
+# Default values (used as fallbacks if Parameter Store is unavailable)
+_DEFAULT_PRICE_VELOCITY_THRESHOLD = 15
+_DEFAULT_VOLUME_SPIKE_THRESHOLD = 200
+_DEFAULT_EMERGING_META_THRESHOLD = 10
 
-# Percentage volume increase to signal volume spike
-VOLUME_SPIKE_THRESHOLD = 200
+# Backwards-compatible constants (use for static references only)
+PRICE_VELOCITY_THRESHOLD = _DEFAULT_PRICE_VELOCITY_THRESHOLD
+VOLUME_SPIKE_THRESHOLD = _DEFAULT_VOLUME_SPIKE_THRESHOLD
+EMERGING_META_THRESHOLD = _DEFAULT_EMERGING_META_THRESHOLD
 
-# Percentage price increase over 7 days to signal emerging meta
-EMERGING_META_THRESHOLD = 10
+
+# =============================================================================
+# Threshold Getter Functions (with Parameter Store lookup)
+# =============================================================================
+
+def get_deal_threshold_percent() -> int:
+    """Get deal threshold percentage from Parameter Store or default."""
+    try:
+        from src.lambdas.common.parameters import get_int_parameter
+        return get_int_parameter("thresholds/deal_percent", _DEFAULT_DEAL_THRESHOLD_PERCENT)
+    except ImportError:
+        return _DEFAULT_DEAL_THRESHOLD_PERCENT
+
+
+def get_snipe_threshold_percent() -> int:
+    """Get snipe threshold percentage from Parameter Store or default."""
+    try:
+        from src.lambdas.common.parameters import get_int_parameter
+        return get_int_parameter("thresholds/snipe_percent", _DEFAULT_SNIPE_THRESHOLD_PERCENT)
+    except ImportError:
+        return _DEFAULT_SNIPE_THRESHOLD_PERCENT
+
+
+def get_min_discount_eth() -> float:
+    """Get minimum discount ETH from Parameter Store or default."""
+    try:
+        from src.lambdas.common.parameters import get_float_parameter
+        return get_float_parameter("thresholds/min_discount_eth", _DEFAULT_MIN_DISCOUNT_ETH)
+    except ImportError:
+        return _DEFAULT_MIN_DISCOUNT_ETH
+
+
+def get_notification_threshold_score() -> int:
+    """Get notification threshold score from Parameter Store or default."""
+    try:
+        from src.lambdas.common.parameters import get_int_parameter
+        return get_int_parameter("thresholds/notification_score", _DEFAULT_NOTIFICATION_THRESHOLD_SCORE)
+    except ImportError:
+        return _DEFAULT_NOTIFICATION_THRESHOLD_SCORE
+
+
+def get_price_velocity_threshold() -> int:
+    """Get price velocity threshold from Parameter Store or default."""
+    try:
+        from src.lambdas.common.parameters import get_int_parameter
+        return get_int_parameter("thresholds/price_velocity", _DEFAULT_PRICE_VELOCITY_THRESHOLD)
+    except ImportError:
+        return _DEFAULT_PRICE_VELOCITY_THRESHOLD
+
+
+def get_volume_spike_threshold() -> int:
+    """Get volume spike threshold from Parameter Store or default."""
+    try:
+        from src.lambdas.common.parameters import get_int_parameter
+        return get_int_parameter("thresholds/volume_spike", _DEFAULT_VOLUME_SPIKE_THRESHOLD)
+    except ImportError:
+        return _DEFAULT_VOLUME_SPIKE_THRESHOLD
+
+
+def get_emerging_meta_threshold() -> int:
+    """Get emerging meta threshold from Parameter Store or default."""
+    try:
+        from src.lambdas.common.parameters import get_int_parameter
+        return get_int_parameter("thresholds/emerging_meta", _DEFAULT_EMERGING_META_THRESHOLD)
+    except ImportError:
+        return _DEFAULT_EMERGING_META_THRESHOLD
 
 
 # =============================================================================

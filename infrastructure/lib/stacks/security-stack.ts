@@ -11,6 +11,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as kms from 'aws-cdk-lib/aws-kms';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { Construct } from 'constructs';
@@ -29,6 +30,9 @@ export class SecurityStack extends cdk.Stack {
   // Secrets
   public readonly apiSecretsArn: string;
   public readonly databaseSecret: secretsmanager.ISecret;
+
+  // Parameter Store
+  public readonly parameterPrefix: string;
 
   // IAM Roles
   public readonly appRunnerInstanceRole: iam.Role;
@@ -141,6 +145,86 @@ export class SecurityStack extends cdk.Stack {
     });
 
     // ========================================================================
+    // Parameter Store (Configuration Parameters)
+    // ========================================================================
+
+    // Parameter prefix for this environment
+    this.parameterPrefix = `/axiepro/${config.shortName}`;
+
+    // Deal Detection Thresholds
+    new ssm.StringParameter(this, 'DealThresholdPercent', {
+      parameterName: `${this.parameterPrefix}/thresholds/deal_percent`,
+      description: 'Minimum discount percentage to qualify as a deal',
+      stringValue: '20',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    new ssm.StringParameter(this, 'SnipeThresholdPercent', {
+      parameterName: `${this.parameterPrefix}/thresholds/snipe_percent`,
+      description: 'Minimum discount percentage to qualify as a snipe opportunity',
+      stringValue: '40',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    new ssm.StringParameter(this, 'MinDiscountEth', {
+      parameterName: `${this.parameterPrefix}/thresholds/min_discount_eth`,
+      description: 'Minimum absolute discount in ETH to qualify as a deal',
+      stringValue: '0.001',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    new ssm.StringParameter(this, 'NotificationThresholdScore', {
+      parameterName: `${this.parameterPrefix}/thresholds/notification_score`,
+      description: 'Minimum deal score to trigger notification',
+      stringValue: '70',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    // Meta Analysis Thresholds
+    new ssm.StringParameter(this, 'PriceVelocityThreshold', {
+      parameterName: `${this.parameterPrefix}/thresholds/price_velocity`,
+      description: 'Price change percentage threshold for velocity detection',
+      stringValue: '15',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    new ssm.StringParameter(this, 'VolumeSpikeThreshold', {
+      parameterName: `${this.parameterPrefix}/thresholds/volume_spike`,
+      description: 'Volume increase percentage threshold for spike detection',
+      stringValue: '200',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    new ssm.StringParameter(this, 'EmergingMetaThreshold', {
+      parameterName: `${this.parameterPrefix}/thresholds/emerging_meta`,
+      description: 'Minimum trending score for emerging meta detection',
+      stringValue: '10',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    // Health Check Thresholds
+    new ssm.StringParameter(this, 'ListingsFreshnessMinutes', {
+      parameterName: `${this.parameterPrefix}/thresholds/listings_freshness`,
+      description: 'Maximum age in minutes for listings to be considered fresh',
+      stringValue: '15',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    new ssm.StringParameter(this, 'SalesFreshnessMinutes', {
+      parameterName: `${this.parameterPrefix}/thresholds/sales_freshness`,
+      description: 'Maximum age in minutes for sales to be considered fresh',
+      stringValue: '60',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    new ssm.StringParameter(this, 'SnapshotsFreshnessMinutes', {
+      parameterName: `${this.parameterPrefix}/thresholds/snapshots_freshness`,
+      description: 'Maximum age in minutes for price snapshots to be considered fresh',
+      stringValue: '30',
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    // ========================================================================
     // IAM Roles
     // ========================================================================
 
@@ -215,6 +299,22 @@ export class SecurityStack extends cdk.Stack {
     this.databaseSecret.grantRead(this.lambdaExecutionRole);
     this.dataKey.grantEncryptDecrypt(this.lambdaExecutionRole);
     this.secretsKey.grantDecrypt(this.lambdaExecutionRole);
+
+    // Grant SSM Parameter Store read access
+    this.lambdaExecutionRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'SSMParameterStoreAccess',
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'ssm:GetParameter',
+          'ssm:GetParameters',
+          'ssm:GetParametersByPath',
+        ],
+        resources: [
+          `arn:aws:ssm:${config.region}:${config.account}:parameter${this.parameterPrefix}/*`,
+        ],
+      })
+    );
 
     // Add CloudWatch Logs permissions
     this.lambdaExecutionRole.addToPolicy(
@@ -310,6 +410,12 @@ export class SecurityStack extends cdk.Stack {
       value: this.ecsTaskRole.roleArn,
       description: 'ECS task role ARN',
       exportName: `${id}-EcsTaskRoleArn`,
+    });
+
+    new cdk.CfnOutput(this, 'ParameterPrefix', {
+      value: this.parameterPrefix,
+      description: 'SSM Parameter Store prefix for this environment',
+      exportName: `${id}-ParameterPrefix`,
     });
 
     // Add tags

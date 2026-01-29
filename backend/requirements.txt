@@ -32,6 +32,7 @@ boto3>=1.34.0
 # Utilities
 python-dateutil==2.8.2
 orjson==3.9.12
+tenacity>=8.2.0
 
 # Authentication
 eth-account==0.11.0

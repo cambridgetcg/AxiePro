@@ -28,6 +28,15 @@ from src.lambdas.common import (
     get_db_connection,
     get_skymavis_endpoint,
     get_skymavis_headers,
+    check_graphql_errors,
+    GraphQLError,
+    safe_validate_price_wei,
+    safe_validate_timestamp,
+    validate_address,
+    validate_axie_id,
+    ValidationError,
+    retry_on_transient_error,
+    publish_listings_batch_to_kinesis,
     AXIE_CLASSES,
     HTTP_TIMEOUT_SECONDS,
 )
@@ -74,6 +83,7 @@ query GetActiveListings($from: Int!, $size: Int!, $classes: [AxieClass!], $sort:
 
 
 @tracer.capture_method
+@retry_on_transient_error
 async def fetch_listings_page(
     client: httpx.AsyncClient,
     page_from: int = 0,
@@ -83,7 +93,7 @@ async def fetch_listings_page(
     api_key: Optional[str] = None,
     internal_secret: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Fetch a page of active listings from Sky Mavis API."""
+    """Fetch a page of active listings from Sky Mavis API with automatic retry."""
     variables = {
         "from": page_from,
         "size": page_size,
@@ -102,7 +112,10 @@ async def fetch_listings_page(
         headers=headers,
     )
     response.raise_for_status()
-    return response.json()
+
+    result = response.json()
+    check_graphql_errors(result)  # Raise if GraphQL errors present
+    return result
 
 
 @tracer.capture_method
@@ -127,15 +140,16 @@ def parse_listings_from_response(response_data: Dict[str, Any]) -> List[Dict[str
         if not axie_id or not order:
             continue
 
-        # Get price in wei and convert to ETH
+        # Validate and convert price using validation utility
         price_wei = order.get("currentPrice")
         if not price_wei:
             continue
 
-        try:
-            price_eth = Decimal(price_wei) / Decimal(10**18)
-        except (ValueError, TypeError):
-            logger.warning(f"Invalid price for axie {axie_id}: {price_wei}")
+        price_eth, price_error = safe_validate_price_wei(
+            price_wei, f"price for axie {axie_id}"
+        )
+        if price_error:
+            logger.warning(price_error)
             continue
 
         price_usd = order.get("currentPriceUsd")
@@ -146,21 +160,23 @@ def parse_listings_from_response(response_data: Dict[str, Any]) -> List[Dict[str
         if not seller:
             continue
 
-        # Parse timestamps
-        listed_at = None
+        # Parse timestamps with validation
+        # For listings, use current time as fallback if started_at is invalid
+        listed_at, ts_error = safe_validate_timestamp(
+            started_at, f"listed_at for axie {axie_id}"
+        )
+        if ts_error:
+            logger.debug(f"Using current time for listing: {ts_error}")
+            listed_at = datetime.now(timezone.utc)
+
+        # expires_at is optional, just skip if invalid
         expires_at = None
-
-        if started_at:
-            try:
-                listed_at = datetime.fromtimestamp(int(started_at), tz=timezone.utc)
-            except (ValueError, TypeError):
-                listed_at = datetime.now(timezone.utc)
-
         if expired_at:
-            try:
-                expires_at = datetime.fromtimestamp(int(expired_at), tz=timezone.utc)
-            except (ValueError, TypeError):
-                pass
+            expires_at, exp_error = safe_validate_timestamp(
+                expired_at, f"expires_at for axie {axie_id}", default=None
+            )
+            if exp_error:
+                logger.debug(f"Skipping expires_at: {exp_error}")
 
         listings.append({
             "axie_id": int(axie_id),
@@ -345,6 +361,15 @@ def handler(event, context):
                             total_inserted += inserted
                             total_updated += updated
                             pages_fetched += 1
+
+                            # Publish new listings to Kinesis for deal detection
+                            # Only publish if we have new listings to avoid noise
+                            if inserted > 0:
+                                kinesis_result = publish_listings_batch_to_kinesis(listings)
+                                logger.debug(
+                                    f"Published to Kinesis: {kinesis_result['succeeded']} succeeded, "
+                                    f"{kinesis_result['failed']} failed"
+                                )
 
                             logger.info(
                                 f"{axie_class} page {pages_fetched}: fetched {len(listings)}, "

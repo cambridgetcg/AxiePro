@@ -1,8 +1,10 @@
 """
 Sales Ingestion Lambda
 
-Runs every 15 minutes to capture settled marketplace sales.
+Runs every 30 minutes to capture settled marketplace sales.
 Fetches from Sky Mavis GraphQL API and stores in Aurora PostgreSQL.
+
+Uses rate limiting and circuit breaker for API resilience.
 """
 
 import asyncio
@@ -23,8 +25,18 @@ from src.lambdas.common import (
     get_db_connection,
     get_skymavis_endpoint,
     get_skymavis_headers,
+    check_graphql_errors,
+    GraphQLError,
+    safe_validate_price_wei,
+    safe_validate_timestamp,
+    ValidationError,
+    retry_on_transient_error,
     HTTP_TIMEOUT_SECONDS,
 )
+
+# Import rate limiting components
+from src.services.rate_limiter import get_skymavis_rate_limiter
+from src.services.circuit_breaker import get_skymavis_circuit_breaker, CircuitOpenError
 
 
 # GraphQL query for recently sold axies with transfer history
@@ -58,8 +70,26 @@ async def fetch_settled_sales(
     page_size: int = 50,
     api_key: Optional[str] = None,
     internal_secret: Optional[str] = None,
+    rate_limiter=None,
+    circuit_breaker=None,
 ) -> Dict[str, Any]:
-    """Fetch settled auction sales from Sky Mavis API."""
+    """Fetch settled auction sales from Sky Mavis API.
+
+    Uses rate limiting and circuit breaker for API resilience.
+    """
+    # Check circuit breaker first
+    if circuit_breaker and not await circuit_breaker.can_execute():
+        recovery_time = circuit_breaker.time_until_recovery()
+        logger.warning(f"Circuit breaker open, skipping request. Recovery in {recovery_time:.1f}s")
+        raise CircuitOpenError(f"Circuit breaker open, recovery in {recovery_time:.1f}s")
+
+    # Acquire rate limit token
+    if rate_limiter:
+        acquired = await rate_limiter.acquire(timeout=30.0)
+        if not acquired:
+            logger.warning("Rate limiter timeout, skipping request")
+            raise Exception("Rate limiter timeout")
+
     variables = {
         "from": page_from,
         "size": page_size,
@@ -68,13 +98,41 @@ async def fetch_settled_sales(
     headers = get_skymavis_headers(api_key, internal_secret)
     endpoint = get_skymavis_endpoint()
 
-    response = await client.post(
-        endpoint,
-        json={"query": SETTLED_AUCTIONS_QUERY, "variables": variables},
-        headers=headers,
-    )
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = await client.post(
+            endpoint,
+            json={"query": SETTLED_AUCTIONS_QUERY, "variables": variables},
+            headers=headers,
+        )
+
+        # Handle rate limiting from API
+        if response.status_code == 429:
+            retry_after = int(response.headers.get("Retry-After", 30))
+            logger.warning(f"API rate limited (429), waiting {retry_after}s")
+            if circuit_breaker:
+                await circuit_breaker.record_failure(Exception("Rate limited"))
+            await asyncio.sleep(retry_after)
+            raise httpx.HTTPStatusError(
+                f"Rate limited",
+                request=response.request,
+                response=response
+            )
+
+        response.raise_for_status()
+
+        result = response.json()
+        check_graphql_errors(result)  # Raise if GraphQL errors present
+
+        # Record success
+        if circuit_breaker:
+            await circuit_breaker.record_success()
+
+        return result
+
+    except Exception as e:
+        if circuit_breaker:
+            await circuit_breaker.record_failure(e)
+        raise
 
 
 @tracer.capture_method
@@ -116,18 +174,20 @@ def parse_sales_from_response(response_data: Dict[str, Any]) -> List[Dict[str, A
             if not all([tx_hash, timestamp, seller, buyer]):
                 continue
 
-            # Convert wei to ETH
-            try:
-                price_eth = Decimal(price_wei) / Decimal(10**18)
-            except (ValueError, TypeError):
-                logger.warning(f"Invalid price for axie {axie_id}: {price_wei}")
+            # Validate and convert price using validation utility
+            price_eth, price_error = safe_validate_price_wei(
+                price_wei, f"price for axie {axie_id}"
+            )
+            if price_error:
+                logger.warning(price_error)
                 continue
 
-            # Parse timestamp (Unix timestamp in seconds)
-            try:
-                sold_at = datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
-            except (ValueError, TypeError):
-                logger.warning(f"Invalid timestamp for axie {axie_id}: {timestamp}")
+            # Validate timestamp using validation utility
+            sold_at, ts_error = safe_validate_timestamp(
+                timestamp, f"timestamp for axie {axie_id}"
+            )
+            if ts_error:
+                logger.warning(ts_error)
                 continue
 
             sales.append({
@@ -223,6 +283,18 @@ def handler(event, context):
     timestamp = datetime.now(timezone.utc)
     logger.info(f"Starting sales ingestion at {timestamp}")
 
+    # Initialize rate limiting components
+    rate_limiter = get_skymavis_rate_limiter()
+    circuit_breaker = get_skymavis_circuit_breaker()
+
+    logger.info(
+        "Rate limiting initialized",
+        extra={
+            "rate_limit": f"{rate_limiter.requests_per_minute} req/min",
+            "circuit_breaker_state": circuit_breaker.state.value,
+        },
+    )
+
     async def ingest():
         conn = get_db_connection()
         secrets = get_secrets()
@@ -259,6 +331,8 @@ def handler(event, context):
                             page_size=page_size,
                             api_key=api_key,
                             internal_secret=internal_secret,
+                            rate_limiter=rate_limiter,
+                            circuit_breaker=circuit_breaker,
                         )
 
                         sales = parse_sales_from_response(result)
@@ -291,6 +365,10 @@ def handler(event, context):
 
                         page_from += page_size
 
+                    except CircuitOpenError as e:
+                        logger.warning(f"Circuit open, stopping: {e}")
+                        break
+
                     except httpx.HTTPStatusError as e:
                         logger.error(f"HTTP error fetching page {pages_fetched}: {e}")
                         metrics.add_metric(name="IngestionHTTPErrors", unit=MetricUnit.Count, value=1)
@@ -303,6 +381,15 @@ def handler(event, context):
         finally:
             conn.close()
 
+        # Log final circuit breaker state
+        logger.info(
+            "Ingestion complete",
+            extra={
+                "circuit_breaker_state": circuit_breaker.state.value,
+                "circuit_breaker_failures": circuit_breaker.failure_count,
+            },
+        )
+
         return {
             "total_fetched": total_fetched,
             "total_inserted": total_inserted,
@@ -314,6 +401,19 @@ def handler(event, context):
     metrics.add_metric(name="SalesFetched", unit=MetricUnit.Count, value=result["total_fetched"])
     metrics.add_metric(name="SalesInserted", unit=MetricUnit.Count, value=result["total_inserted"])
     metrics.add_metric(name="PagesFetched", unit=MetricUnit.Count, value=result["pages_fetched"])
+
+    # Publish circuit breaker metrics for CloudWatch alarms
+    circuit_state = circuit_breaker.state.value
+    metrics.add_metric(
+        name="CircuitBreakerOpen",
+        unit=MetricUnit.Count,
+        value=1 if circuit_state == "open" else 0
+    )
+    metrics.add_metric(
+        name="CircuitBreakerFailures",
+        unit=MetricUnit.Count,
+        value=circuit_breaker.failure_count
+    )
 
     logger.info(
         f"Sales ingestion complete: fetched {result['total_fetched']}, "
