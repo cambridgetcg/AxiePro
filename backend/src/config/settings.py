@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     # CORS - comma-separated list of allowed origins
     # In production, set to your frontend domain(s)
     # Default includes production domains for safety
-    cors_origins: str = "https://axiepro.io,https://www.axiepro.io,http://localhost:3000"
+    cors_origins: str = "https://axiepro.io,https://www.axiepro.io,https://app.axiepro.io,http://localhost:3000"
 
     # Database
     database_url: str = "postgresql://axie:axie_dev_password@localhost:5432/axie_explorer"
@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     # External APIs
     goldrush_api_key: Optional[str] = None
     skymavis_api_key: Optional[str] = None
+    moralis_api_key: Optional[str] = None
 
     # Authentication
     jwt_secret: str = "change-this-in-production-min-32-chars"
@@ -100,6 +101,8 @@ class Settings(BaseSettings):
             self.goldrush_api_key = aws_secrets["goldrush_api_key"]
         if aws_secrets.get("skymavis_api_key"):
             self.skymavis_api_key = aws_secrets["skymavis_api_key"]
+        if aws_secrets.get("moralis_api_key"):
+            self.moralis_api_key = aws_secrets["moralis_api_key"]
         if aws_secrets.get("database_url"):
             self.database_url = aws_secrets["database_url"]
         if aws_secrets.get("redis_url"):
@@ -145,6 +148,7 @@ class Settings(BaseSettings):
 
     # API Rate Limits (requests per minute)
     goldrush_rate_limit: int = 100
+    moralis_rate_limit: int = 25  # Free tier: 25 req/sec = 1500/min, conservative
 
     # Cache TTLs (seconds)
     cache_ttl_listings: int = 300  # 5 minutes
@@ -170,6 +174,11 @@ class Settings(BaseSettings):
     def goldrush_chain_id(self) -> str:
         """Goldrush chain identifier for Ronin (mainnet only - testnet not supported)."""
         return "axie-mainnet"
+
+    @property
+    def moralis_base_url(self) -> str:
+        """Moralis API base URL."""
+        return "https://deep-index.moralis.io/api/v2.2"
 
 
 @lru_cache
