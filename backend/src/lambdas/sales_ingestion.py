@@ -2,9 +2,9 @@
 Sales Ingestion Lambda
 
 Runs every 30 minutes to capture settled marketplace sales.
-Fetches from Sky Mavis GraphQL API and stores in Aurora PostgreSQL.
+Fetches directly from Ronin blockchain via RPC and stores in Aurora PostgreSQL.
 
-Uses rate limiting and circuit breaker for API resilience.
+Uses on-chain event parsing - no external API rate limits.
 """
 
 import asyncio
@@ -13,7 +13,6 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
 
-import httpx
 from aws_lambda_powertools.metrics import MetricUnit
 
 # Import shared utilities from common module
@@ -21,201 +20,105 @@ from src.lambdas.common import (
     logger,
     tracer,
     metrics,
-    get_secrets,
     get_db_connection,
-    get_skymavis_endpoint,
-    get_skymavis_headers,
-    check_graphql_errors,
-    GraphQLError,
-    safe_validate_price_wei,
-    safe_validate_timestamp,
-    ValidationError,
-    retry_on_transient_error,
-    HTTP_TIMEOUT_SECONDS,
 )
 
-# Import rate limiting components
-from src.services.rate_limiter import get_skymavis_rate_limiter
-from src.services.circuit_breaker import get_skymavis_circuit_breaker, CircuitOpenError
+# Import Ronin RPC client
+from src.services.ronin_rpc_client import RoninRPCClient, Sale, RoninRPCError
 
 
-# GraphQL query for recently sold axies with transfer history
-SETTLED_AUCTIONS_QUERY = """
-query GetSettledAuctions($from: Int!, $size: Int!) {
-  settledAuctions {
-    axies(from: $from, size: $size, sort: Latest) {
-      total
-      results {
-        id
-        class
-        transferHistory {
-          timestamp
-          txHash
-          withPrice
-          withPriceUsd
-          from
-          to
-        }
-      }
-    }
-  }
-}
-"""
+# Configuration
+BLOCKS_PER_30_MIN = 900  # ~2 sec block time = 900 blocks in 30 min
+MAX_BLOCKS_PER_RUN = 1500  # Conservative limit for public RPC rate limits
+DEFAULT_LOOKBACK_BLOCKS = 1000  # ~33 min lookback on first run (conservative)
 
 
 @tracer.capture_method
-async def fetch_settled_sales(
-    client: httpx.AsyncClient,
-    page_from: int = 0,
-    page_size: int = 50,
-    api_key: Optional[str] = None,
-    internal_secret: Optional[str] = None,
-    rate_limiter=None,
-    circuit_breaker=None,
-) -> Dict[str, Any]:
-    """Fetch settled auction sales from Sky Mavis API.
-
-    Uses rate limiting and circuit breaker for API resilience.
+def get_last_processed_block(conn) -> Optional[int]:
     """
-    # Check circuit breaker first
-    if circuit_breaker and not await circuit_breaker.can_execute():
-        recovery_time = circuit_breaker.time_until_recovery()
-        logger.warning(f"Circuit breaker open, skipping request. Recovery in {recovery_time:.1f}s")
-        raise CircuitOpenError(f"Circuit breaker open, recovery in {recovery_time:.1f}s")
+    Get the last processed block number from database.
 
-    # Acquire rate limit token
-    if rate_limiter:
-        acquired = await rate_limiter.acquire(timeout=30.0)
-        if not acquired:
-            logger.warning("Rate limiter timeout, skipping request")
-            raise Exception("Rate limiter timeout")
-
-    variables = {
-        "from": page_from,
-        "size": page_size,
-    }
-
-    headers = get_skymavis_headers(api_key, internal_secret)
-    endpoint = get_skymavis_endpoint()
-
+    Uses a metadata table to track ingestion progress.
+    Falls back to estimating from recent sales if not available.
+    """
+    # Try metadata table first
     try:
-        response = await client.post(
-            endpoint,
-            json={"query": SETTLED_AUCTIONS_QUERY, "variables": variables},
-            headers=headers,
-        )
-
-        # Handle rate limiting from API
-        if response.status_code == 429:
-            retry_after = int(response.headers.get("Retry-After", 30))
-            # Cap retry wait to avoid Lambda timeout - let the next scheduled run handle it
-            max_wait = 10  # Max 10 seconds wait within Lambda
-            if retry_after > max_wait:
-                logger.warning(
-                    f"API rate limited (429), retry_after={retry_after}s exceeds max_wait={max_wait}s, failing fast"
-                )
-                if circuit_breaker:
-                    await circuit_breaker.record_failure(Exception("Rate limited - long wait"))
-                raise httpx.HTTPStatusError(
-                    f"Rate limited (retry_after={retry_after}s)",
-                    request=response.request,
-                    response=response
-                )
-            logger.warning(f"API rate limited (429), waiting {retry_after}s")
-            if circuit_breaker:
-                await circuit_breaker.record_failure(Exception("Rate limited"))
-            await asyncio.sleep(retry_after)
-            raise httpx.HTTPStatusError(
-                f"Rate limited",
-                request=response.request,
-                response=response
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT value FROM ingestion_metadata WHERE key = 'sales_last_block'"
             )
-
-        response.raise_for_status()
-
-        result = response.json()
-        check_graphql_errors(result)  # Raise if GraphQL errors present
-
-        # Record success
-        if circuit_breaker:
-            await circuit_breaker.record_success()
-
-        return result
-
+            result = cur.fetchone()
+            if result and result[0] and result[0] != '0':
+                return int(result[0])
     except Exception as e:
-        if circuit_breaker:
-            await circuit_breaker.record_failure(e)
-        raise
+        logger.debug(f"Metadata table not available: {e}")
+        # Rollback to clear the failed transaction state
+        conn.rollback()
+
+    # Fall back to checking if we have any sales data
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT MAX(sold_at) FROM sales")
+            result = cur.fetchone()
+            if result and result[0]:
+                # We have sales but no block tracking - use time-based lookback
+                logger.info("No block metadata found, will use time-based lookback")
+                return None
+    except Exception as e:
+        logger.debug(f"Could not check sales table: {e}")
+        conn.rollback()
+
+    return None
 
 
 @tracer.capture_method
-def parse_sales_from_response(response_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """
-    Parse sales data from GraphQL response.
-
-    Extracts the most recent sale from each axie's transfer history.
-    """
-    sales = []
-
-    axies_data = (
-        response_data.get("data", {})
-        .get("settledAuctions", {})
-        .get("axies", {})
-        .get("results", [])
-    )
-
-    for axie in axies_data:
-        axie_id = axie.get("id")
-        axie_class = axie.get("class", "Unknown")
-        transfers = axie.get("transferHistory", [])
-
-        if not axie_id or not transfers:
-            continue
-
-        # Find transfers with price (these are sales, not gifts)
-        for transfer in transfers:
-            price_wei = transfer.get("withPrice")
-            if not price_wei:
-                continue
-
-            tx_hash = transfer.get("txHash")
-            timestamp = transfer.get("timestamp")
-            seller = transfer.get("from")
-            buyer = transfer.get("to")
-            price_usd = transfer.get("withPriceUsd")
-
-            if not all([tx_hash, timestamp, seller, buyer]):
-                continue
-
-            # Validate and convert price using validation utility
-            price_eth, price_error = safe_validate_price_wei(
-                price_wei, f"price for axie {axie_id}"
+def save_last_processed_block(conn, block_number: int):
+    """Save the last processed block number to database."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO ingestion_metadata (key, value, updated_at)
+                VALUES ('sales_last_block', %s, %s)
+                ON CONFLICT (key) DO UPDATE SET
+                    value = EXCLUDED.value,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (str(block_number), datetime.now(timezone.utc)),
             )
-            if price_error:
-                logger.warning(price_error)
-                continue
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Could not save block metadata (table may not exist): {e}")
+        # Rollback to clear failed transaction state
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        # Don't fail the whole ingestion for this
 
-            # Validate timestamp using validation utility
-            sold_at, ts_error = safe_validate_timestamp(
-                timestamp, f"timestamp for axie {axie_id}"
-            )
-            if ts_error:
-                logger.warning(ts_error)
-                continue
 
-            sales.append({
-                "axie_id": int(axie_id),
-                "class_": axie_class,
-                "seller_address": seller.lower() if seller else None,
-                "buyer_address": buyer.lower() if buyer else None,
-                "price_eth": price_eth,
-                "price_usd": Decimal(str(price_usd)) if price_usd else None,
-                "tx_hash": tx_hash,
-                "sold_at": sold_at,
-                "marketplace": "official",
-            })
+@tracer.capture_method
+def convert_sale_to_record(sale: Sale) -> Dict[str, Any]:
+    """Convert RPC Sale object to database record format."""
+    # Convert token price to ETH equivalent for consistency
+    # WETH is already in ETH units, WRON needs conversion
+    if sale.token_type == "WETH":
+        price_eth = Decimal(str(sale.price_token))
+    else:
+        # WRON price - store as-is, price_usd is the reference
+        price_eth = Decimal(str(sale.price_token))
 
-    return sales
+    return {
+        "axie_id": sale.axie_id,
+        "seller_address": sale.seller.lower() if sale.seller else None,
+        "buyer_address": sale.buyer.lower() if sale.buyer else None,
+        "price_eth": price_eth,
+        "price_usd": Decimal(str(sale.price_usd)) if sale.price_usd else None,
+        "tx_hash": sale.tx_hash,
+        "sold_at": sale.block_timestamp or datetime.now(timezone.utc),
+        "marketplace": "official",
+        "token_type": sale.token_type,  # New field to track payment token
+    }
 
 
 @tracer.capture_method
@@ -266,171 +169,167 @@ def store_sales(conn, sales: List[Dict[str, Any]]) -> int:
 
 
 @tracer.capture_method
-def get_cutoff_timestamp(conn, hours: int = 48) -> Optional[datetime]:
-    """
-    Get the most recent sale timestamp to avoid fetching old data.
+async def fetch_block_timestamps(
+    rpc_client: RoninRPCClient,
+    sales: List[Sale],
+) -> List[Sale]:
+    """Fetch and attach block timestamps to sales."""
+    # Get unique block numbers
+    block_numbers = list(set(s.block_number for s in sales))
 
-    Returns the timestamp of the most recent sale, or a default cutoff.
-    """
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    # Fetch timestamps in parallel (limit concurrency)
+    timestamps = {}
 
-    with conn.cursor() as cur:
-        cur.execute("SELECT MAX(sold_at) FROM sales")
-        result = cur.fetchone()
-        if result and result[0]:
-            # If we have recent data, only go back a bit
-            most_recent = result[0]
-            if most_recent.tzinfo is None:
-                most_recent = most_recent.replace(tzinfo=timezone.utc)
-            # Go back 2 hours from most recent to catch any stragglers
-            return max(cutoff, most_recent - timedelta(hours=2))
+    async def fetch_timestamp(block_num: int):
+        try:
+            ts = await rpc_client.get_block_timestamp(block_num)
+            timestamps[block_num] = ts
+        except Exception as e:
+            logger.warning(f"Could not get timestamp for block {block_num}: {e}")
+            timestamps[block_num] = datetime.now(timezone.utc)
 
-    return cutoff
+    # Process in batches of 10
+    for i in range(0, len(block_numbers), 10):
+        batch = block_numbers[i:i+10]
+        await asyncio.gather(*[fetch_timestamp(b) for b in batch])
+
+    # Attach timestamps to sales
+    for sale in sales:
+        sale.block_timestamp = timestamps.get(sale.block_number)
+
+    return sales
 
 
 @logger.inject_lambda_context
 @tracer.capture_lambda_handler
 @metrics.log_metrics
 def handler(event, context):
-    """Lambda handler for sales ingestion."""
+    """Lambda handler for sales ingestion via Ronin RPC."""
     timestamp = datetime.now(timezone.utc)
-    logger.info(f"Starting sales ingestion at {timestamp}")
-
-    # Initialize rate limiting components
-    rate_limiter = get_skymavis_rate_limiter()
-    circuit_breaker = get_skymavis_circuit_breaker()
-
-    logger.info(
-        "Rate limiting initialized",
-        extra={
-            "rate_limit": f"{rate_limiter.requests_per_minute} req/min",
-            "circuit_breaker_state": circuit_breaker.state.value,
-        },
-    )
+    logger.info(f"Starting sales ingestion (Ronin RPC) at {timestamp}")
 
     async def ingest():
         conn = get_db_connection()
-        secrets = get_secrets()
-        api_key = secrets.get("SKYMAVIS_API_KEY")
-        internal_secret = secrets.get("INTERNAL_SECRET")
-
-        logger.info(
-            "API configuration",
-            extra={
-                "has_api_key": bool(api_key),
-                "api_key_prefix": api_key[:8] if api_key else None,
-                "endpoint": get_skymavis_endpoint(),
-            },
-        )
 
         total_inserted = 0
         total_fetched = 0
-        pages_fetched = 0
-        max_pages = 10  # Limit to prevent runaway fetching
-        page_size = 100
+        from_block = 0
+        to_block = 0
 
         try:
-            cutoff = get_cutoff_timestamp(conn)
-            logger.info(f"Fetching sales since {cutoff}")
+            async with RoninRPCClient() as rpc_client:
+                # Get current block
+                current_block = await rpc_client.get_block_number()
+                logger.info(f"Current Ronin block: {current_block}")
 
-            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
-                page_from = 0
+                # Determine block range to scan
+                last_block = get_last_processed_block(conn)
 
-                while pages_fetched < max_pages:
-                    try:
-                        result = await fetch_settled_sales(
-                            client,
-                            page_from=page_from,
-                            page_size=page_size,
-                            api_key=api_key,
-                            internal_secret=internal_secret,
-                            rate_limiter=rate_limiter,
-                            circuit_breaker=circuit_breaker,
-                        )
+                if last_block:
+                    # Resume from last processed block
+                    from_block = last_block + 1
+                else:
+                    # First run or no metadata - use conservative lookback
+                    from_block = max(1, current_block - DEFAULT_LOOKBACK_BLOCKS)
+                    logger.info(f"No previous block found, looking back {DEFAULT_LOOKBACK_BLOCKS} blocks")
 
-                        sales = parse_sales_from_response(result)
-                        total_fetched += len(sales)
+                to_block = current_block
 
-                        if not sales:
-                            logger.info(f"No more sales found at page {pages_fetched}")
-                            break
+                # Safety limit
+                if to_block - from_block > MAX_BLOCKS_PER_RUN:
+                    logger.warning(
+                        f"Block range too large ({to_block - from_block}), "
+                        f"limiting to {MAX_BLOCKS_PER_RUN} blocks"
+                    )
+                    from_block = to_block - MAX_BLOCKS_PER_RUN
 
-                        # Filter to only recent sales
-                        recent_sales = [s for s in sales if s["sold_at"] >= cutoff]
+                # Skip if no new blocks
+                if from_block > to_block:
+                    logger.info("No new blocks to process")
+                    return {
+                        "total_fetched": 0,
+                        "total_inserted": 0,
+                        "from_block": from_block,
+                        "to_block": to_block,
+                    }
 
-                        if not recent_sales:
-                            logger.info(f"No sales after cutoff at page {pages_fetched}")
-                            break
+                logger.info(
+                    f"Scanning blocks {from_block} to {to_block} "
+                    f"({to_block - from_block + 1} blocks)"
+                )
 
-                        inserted = store_sales(conn, recent_sales)
-                        total_inserted += inserted
-                        pages_fetched += 1
+                # Fetch sales from blockchain
+                def progress_callback(phase: str, current: int, total: int):
+                    if total > 0 and current % 100 == 0:
+                        logger.info(f"Progress [{phase}]: {current}/{total}")
 
-                        logger.info(
-                            f"Page {pages_fetched}: fetched {len(sales)}, "
-                            f"recent {len(recent_sales)}, inserted {inserted}"
-                        )
+                sales = await rpc_client.fetch_sales(
+                    from_block=from_block,
+                    to_block=to_block,
+                    log_workers=3,  # Conservative for public RPC
+                    receipt_workers=5,  # Reduced to avoid rate limits
+                    progress_callback=progress_callback,
+                )
 
-                        # If we inserted fewer than expected, we might be hitting duplicates
-                        if inserted == 0 and pages_fetched > 1:
-                            logger.info("No new sales inserted, stopping pagination")
-                            break
+                total_fetched = len(sales)
+                logger.info(f"Found {total_fetched} sales in block range")
 
-                        page_from += page_size
+                if sales:
+                    # Fetch block timestamps
+                    sales = await fetch_block_timestamps(rpc_client, sales)
 
-                    except CircuitOpenError as e:
-                        logger.warning(f"Circuit open, stopping: {e}")
-                        break
+                    # Convert to database format
+                    records = [convert_sale_to_record(s) for s in sales]
 
-                    except httpx.HTTPStatusError as e:
-                        logger.error(f"HTTP error fetching page {pages_fetched}: {e}")
-                        metrics.add_metric(name="IngestionHTTPErrors", unit=MetricUnit.Count, value=1)
-                        break
-                    except Exception as e:
-                        logger.error(f"Error fetching page {pages_fetched}: {e}")
-                        metrics.add_metric(name="IngestionErrors", unit=MetricUnit.Count, value=1)
-                        break
+                    # Store in database
+                    total_inserted = store_sales(conn, records)
+                    logger.info(f"Inserted {total_inserted} new sales")
+
+                # Save progress
+                save_last_processed_block(conn, to_block)
+
+                # Log provider stats
+                provider_stats = rpc_client.get_provider_stats()
+                logger.info(
+                    "RPC provider stats",
+                    extra={"providers": provider_stats},
+                )
+
+        except RoninRPCError as e:
+            logger.error(f"RPC error during ingestion: {e}")
+            metrics.add_metric(name="IngestionRPCErrors", unit=MetricUnit.Count, value=1)
+            raise
+
+        except Exception as e:
+            logger.error(f"Error during ingestion: {e}")
+            metrics.add_metric(name="IngestionErrors", unit=MetricUnit.Count, value=1)
+            raise
 
         finally:
             conn.close()
 
-        # Log final circuit breaker state
-        logger.info(
-            "Ingestion complete",
-            extra={
-                "circuit_breaker_state": circuit_breaker.state.value,
-                "circuit_breaker_failures": circuit_breaker.failure_count,
-            },
-        )
-
         return {
             "total_fetched": total_fetched,
             "total_inserted": total_inserted,
-            "pages_fetched": pages_fetched,
+            "from_block": from_block,
+            "to_block": to_block,
         }
 
     result = asyncio.run(ingest())
 
+    # Record metrics
     metrics.add_metric(name="SalesFetched", unit=MetricUnit.Count, value=result["total_fetched"])
     metrics.add_metric(name="SalesInserted", unit=MetricUnit.Count, value=result["total_inserted"])
-    metrics.add_metric(name="PagesFetched", unit=MetricUnit.Count, value=result["pages_fetched"])
-
-    # Publish circuit breaker metrics for CloudWatch alarms
-    circuit_state = circuit_breaker.state.value
     metrics.add_metric(
-        name="CircuitBreakerOpen",
+        name="BlocksScanned",
         unit=MetricUnit.Count,
-        value=1 if circuit_state == "open" else 0
-    )
-    metrics.add_metric(
-        name="CircuitBreakerFailures",
-        unit=MetricUnit.Count,
-        value=circuit_breaker.failure_count
+        value=max(0, result["to_block"] - result["from_block"] + 1),
     )
 
     logger.info(
         f"Sales ingestion complete: fetched {result['total_fetched']}, "
-        f"inserted {result['total_inserted']} from {result['pages_fetched']} pages"
+        f"inserted {result['total_inserted']} from blocks "
+        f"{result['from_block']}-{result['to_block']}"
     )
 
     return {
@@ -439,7 +338,8 @@ def handler(event, context):
             "message": "Sales ingestion complete",
             "sales_fetched": result["total_fetched"],
             "sales_inserted": result["total_inserted"],
-            "pages_fetched": result["pages_fetched"],
+            "from_block": result["from_block"],
+            "to_block": result["to_block"],
             "timestamp": timestamp.isoformat(),
         }),
     }

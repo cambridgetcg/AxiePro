@@ -448,13 +448,13 @@ export class ComputeStack extends cdk.Stack {
     // 2. Sales Ingestion Lambda
     const salesIngestionLambda = new lambda.Function(this, 'SalesIngestionLambda', {
       functionName: getResourceName('sales-ingestion', config),
-      description: 'Fetches settled sales from Sky Mavis and stores in database',
+      description: 'Fetches settled sales from Ronin RPC and stores in database',
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'src.lambdas.sales_ingestion.handler',
       code: lambdaCodeAsset,
       layers: [dependenciesLayer],
       memorySize: config.compute.lambda.memorySize,
-      timeout: cdk.Duration.minutes(3), // Longer timeout for pagination
+      timeout: cdk.Duration.minutes(5), // Longer timeout for RPC block scanning
       role: lambdaRole,
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
