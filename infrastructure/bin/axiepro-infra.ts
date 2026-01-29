@@ -164,12 +164,16 @@ const computeStack = new ComputeStack(app, stackName('Compute'), {
   redisEndpoint: cacheStack.redisEndpoint,
   redisPort: cacheStack.redisPort,
   secretsArn: securityStack.apiSecretsArn,
+  databaseSecretsArn: securityStack.databaseSecret.secretArn,
   kmsKey: securityStack.dataKey,
+  secretsKey: securityStack.secretsKey,
   dataBucket: storageStack.dataBucket,
   listingsStream: eventsStack.listingsStream,
   dealAlertsTopic: eventsStack.dealAlertsTopic,
   batchQueue: eventsStack.batchProcessingQueue,
+  deadLetterQueue: eventsStack.deadLetterQueue,  // DLQ for failed Lambda invocations
   ecrRepository: storageStack.ecrRepository,
+  parameterPrefix: securityStack.parameterPrefix,  // SSM Parameter Store prefix
   // IAM roles from Security stack
   appRunnerInstanceRole: securityStack.appRunnerInstanceRole,
   appRunnerAccessRole: securityStack.appRunnerAccessRole,

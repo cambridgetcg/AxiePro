@@ -474,23 +474,52 @@ Real-time monitoring for the Axie Infinity Analytics Platform.
       period: cdk.Duration.minutes(5),
     });
 
+    // Circuit breaker and ingestion health metrics
+    const circuitBreakerOpenMetric = new cloudwatch.Metric({
+      namespace: METRICS_NAMESPACE,
+      metricName: 'CircuitBreakerOpen',
+      statistic: 'Maximum',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const circuitBreakerFailuresMetric = new cloudwatch.Metric({
+      namespace: METRICS_NAMESPACE,
+      metricName: 'CircuitBreakerFailures',
+      statistic: 'Maximum',
+      period: cdk.Duration.minutes(5),
+    });
+
+    const ingestionErrorsMetric = new cloudwatch.Metric({
+      namespace: METRICS_NAMESPACE,
+      metricName: 'IngestionErrors',
+      statistic: 'Sum',
+      period: cdk.Duration.minutes(5),
+    });
+
     this.dashboard.addWidgets(
       new cloudwatch.GraphWidget({
         title: 'Deals & Snipes Found',
         left: [dealsFoundMetric, snipesFoundMetric],
-        width: 8,
+        width: 6,
         height: 6,
       }),
       new cloudwatch.GraphWidget({
         title: 'Valuations Computed',
         left: [valuationsComputedMetric],
-        width: 8,
+        width: 6,
         height: 6,
       }),
       new cloudwatch.GraphWidget({
         title: 'Blocks Processed',
         left: [blocksProcessedMetric],
-        width: 8,
+        width: 6,
+        height: 6,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Circuit Breaker & Ingestion Health',
+        left: [circuitBreakerOpenMetric, circuitBreakerFailuresMetric],
+        right: [ingestionErrorsMetric],
+        width: 6,
         height: 6,
       })
     );
@@ -583,6 +612,90 @@ Real-time monitoring for the Axie Infinity Analytics Platform.
         datapointsToAlarm: 2,
         comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
         treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+      }).addAlarmAction({
+        bind: () => ({ alarmActionArn: this.alarmTopic.topicArn }),
+      });
+
+      // Circuit Breaker Open Alarm - triggers when external API circuit breaker opens
+      const circuitBreakerOpenMetric = new cloudwatch.Metric({
+        namespace: METRICS_NAMESPACE,
+        metricName: 'CircuitBreakerOpen',
+        statistic: 'Maximum',
+        period: cdk.Duration.minutes(5),
+      });
+
+      new cloudwatch.Alarm(this, 'CircuitBreakerOpenAlarm', {
+        alarmName: getResourceName('circuit-breaker-open-alarm', config),
+        alarmDescription: 'Circuit breaker is open - external API (SkyMavis) may be failing',
+        metric: circuitBreakerOpenMetric,
+        threshold: 1,
+        evaluationPeriods: 1,
+        datapointsToAlarm: 1,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+      }).addAlarmAction({
+        bind: () => ({ alarmActionArn: this.alarmTopic.topicArn }),
+      });
+
+      // Circuit Breaker High Failures Alarm - early warning before circuit opens
+      const circuitBreakerFailuresMetric = new cloudwatch.Metric({
+        namespace: METRICS_NAMESPACE,
+        metricName: 'CircuitBreakerFailures',
+        statistic: 'Maximum',
+        period: cdk.Duration.minutes(5),
+      });
+
+      new cloudwatch.Alarm(this, 'CircuitBreakerHighFailuresAlarm', {
+        alarmName: getResourceName('circuit-breaker-failures-alarm', config),
+        alarmDescription: 'Circuit breaker failure count is high - API may be degraded',
+        metric: circuitBreakerFailuresMetric,
+        threshold: 3,
+        evaluationPeriods: 2,
+        datapointsToAlarm: 2,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+      }).addAlarmAction({
+        bind: () => ({ alarmActionArn: this.alarmTopic.topicArn }),
+      });
+
+      // Ingestion Errors Alarm - high error rate during data ingestion
+      const ingestionErrorsMetric = new cloudwatch.Metric({
+        namespace: METRICS_NAMESPACE,
+        metricName: 'IngestionErrors',
+        statistic: 'Sum',
+        period: cdk.Duration.minutes(5),
+      });
+
+      new cloudwatch.Alarm(this, 'IngestionErrorsAlarm', {
+        alarmName: getResourceName('ingestion-errors-alarm', config),
+        alarmDescription: 'High error rate during data ingestion',
+        metric: ingestionErrorsMetric,
+        threshold: 10,
+        evaluationPeriods: 2,
+        datapointsToAlarm: 2,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+      }).addAlarmAction({
+        bind: () => ({ alarmActionArn: this.alarmTopic.topicArn }),
+      });
+
+      // Data Pipeline Health Alarm - triggers when health check reports unhealthy
+      const dataPipelineHealthMetric = new cloudwatch.Metric({
+        namespace: METRICS_NAMESPACE,
+        metricName: 'DataPipelineHealthy',
+        statistic: 'Minimum',
+        period: cdk.Duration.minutes(5),
+      });
+
+      new cloudwatch.Alarm(this, 'DataPipelineUnhealthyAlarm', {
+        alarmName: getResourceName('data-pipeline-unhealthy-alarm', config),
+        alarmDescription: 'Data pipeline is unhealthy - data freshness check failed',
+        metric: dataPipelineHealthMetric,
+        threshold: 1,
+        evaluationPeriods: 3,
+        datapointsToAlarm: 2,
+        comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
+        treatMissingData: cloudwatch.TreatMissingData.BREACHING,  // Missing data = unhealthy
       }).addAlarmAction({
         bind: () => ({ alarmActionArn: this.alarmTopic.topicArn }),
       });

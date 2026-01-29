@@ -33,6 +33,7 @@ export class EventsStack extends cdk.Stack {
   public readonly listingsStream: kinesis.IStream;
 
   // SQS Queues
+  public readonly deadLetterQueue: sqs.IQueue;
   public readonly batchProcessingQueue: sqs.IQueue;
   public readonly valuationQueue: sqs.IQueue;
   public readonly notificationQueue: sqs.IQueue;
@@ -89,8 +90,8 @@ export class EventsStack extends cdk.Stack {
     // SQS Queues
     // ========================================================================
 
-    // Dead letter queue for failed messages
-    const deadLetterQueue = new sqs.Queue(this, 'DeadLetterQueue', {
+    // Dead letter queue for failed messages (shared across SQS and Lambda)
+    this.deadLetterQueue = new sqs.Queue(this, 'DeadLetterQueue', {
       queueName: getResourceName('dlq', config),
       encryption: sqs.QueueEncryption.KMS,
       encryptionMasterKey: kmsKey,
@@ -106,7 +107,7 @@ export class EventsStack extends cdk.Stack {
       visibilityTimeout: cdk.Duration.minutes(15), // Long timeout for batch jobs
       receiveMessageWaitTime: cdk.Duration.seconds(20), // Long polling
       deadLetterQueue: {
-        queue: deadLetterQueue,
+        queue: this.deadLetterQueue,
         maxReceiveCount: 3,
       },
       removalPolicy: config.removalPolicy,
@@ -120,7 +121,7 @@ export class EventsStack extends cdk.Stack {
       visibilityTimeout: cdk.Duration.seconds(60),
       receiveMessageWaitTime: cdk.Duration.seconds(10),
       deadLetterQueue: {
-        queue: deadLetterQueue,
+        queue: this.deadLetterQueue,
         maxReceiveCount: 3,
       },
       removalPolicy: config.removalPolicy,
@@ -134,7 +135,7 @@ export class EventsStack extends cdk.Stack {
       visibilityTimeout: cdk.Duration.seconds(30),
       receiveMessageWaitTime: cdk.Duration.seconds(5),
       deadLetterQueue: {
-        queue: deadLetterQueue,
+        queue: this.deadLetterQueue,
         maxReceiveCount: 5,
       },
       removalPolicy: config.removalPolicy,
@@ -269,6 +270,18 @@ export class EventsStack extends cdk.Stack {
       value: this.systemAlertsTopic.topicArn,
       description: 'System alerts SNS topic ARN',
       exportName: `${id}-SystemAlertsTopicArn`,
+    });
+
+    new cdk.CfnOutput(this, 'DeadLetterQueueArn', {
+      value: this.deadLetterQueue.queueArn,
+      description: 'Dead letter queue ARN for failed Lambda invocations',
+      exportName: `${id}-DeadLetterQueueArn`,
+    });
+
+    new cdk.CfnOutput(this, 'DeadLetterQueueUrl', {
+      value: this.deadLetterQueue.queueUrl,
+      description: 'Dead letter queue URL',
+      exportName: `${id}-DeadLetterQueueUrl`,
     });
 
     if (this.webSocketApi) {

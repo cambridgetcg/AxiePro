@@ -1,8 +1,10 @@
 """
 Price Ingestion Lambda
 
-Runs every 5 minutes to capture price snapshots from the marketplace.
+Runs every 15 minutes to capture price snapshots from the marketplace.
 Stores data in Aurora PostgreSQL for trend analysis.
+
+Uses rate limiting and circuit breaker for API resilience.
 """
 
 import asyncio
@@ -23,10 +25,18 @@ from src.lambdas.common import (
     get_db_connection,
     get_skymavis_endpoint,
     get_skymavis_headers,
+    check_graphql_errors,
+    GraphQLError,
+    safe_validate_price_wei,
+    ValidationError,
     TRACKED_PARTS_BY_CLASS,
     PARTS_SAMPLE_SIZE,
     HTTP_TIMEOUT_SECONDS,
 )
+
+# Import rate limiting components
+from src.services.rate_limiter import get_skymavis_rate_limiter
+from src.services.circuit_breaker import get_skymavis_circuit_breaker, CircuitOpenError
 
 
 # GraphQL query for floor prices
@@ -65,8 +75,26 @@ async def fetch_floor_prices(
     part_id: Optional[str] = None,
     api_key: Optional[str] = None,
     internal_secret: Optional[str] = None,
+    rate_limiter=None,
+    circuit_breaker=None,
 ) -> dict:
-    """Fetch floor prices for a specific class and optional part."""
+    """Fetch floor prices for a specific class and optional part.
+
+    Uses rate limiting and circuit breaker for API resilience.
+    """
+    # Check circuit breaker first
+    if circuit_breaker and not await circuit_breaker.can_execute():
+        recovery_time = circuit_breaker.time_until_recovery()
+        logger.warning(f"Circuit breaker open, skipping request. Recovery in {recovery_time:.1f}s")
+        raise CircuitOpenError(f"Circuit breaker open, recovery in {recovery_time:.1f}s")
+
+    # Acquire rate limit token
+    if rate_limiter:
+        acquired = await rate_limiter.acquire(timeout=30.0)
+        if not acquired:
+            logger.warning("Rate limiter timeout, skipping request")
+            raise Exception("Rate limiter timeout")
+
     variables = {
         "classes": [axie_class.capitalize()],
         "sort": "PriceAsc",
@@ -78,13 +106,41 @@ async def fetch_floor_prices(
     headers = get_skymavis_headers(api_key, internal_secret)
     endpoint = get_skymavis_endpoint()
 
-    response = await client.post(
-        endpoint,
-        json={"query": FLOOR_PRICE_QUERY, "variables": variables},
-        headers=headers,
-    )
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = await client.post(
+            endpoint,
+            json={"query": FLOOR_PRICE_QUERY, "variables": variables},
+            headers=headers,
+        )
+
+        # Handle rate limiting from API
+        if response.status_code == 429:
+            retry_after = int(response.headers.get("Retry-After", 30))
+            logger.warning(f"API rate limited (429), waiting {retry_after}s")
+            if circuit_breaker:
+                await circuit_breaker.record_failure(Exception("Rate limited"))
+            await asyncio.sleep(retry_after)
+            raise httpx.HTTPStatusError(
+                f"Rate limited",
+                request=response.request,
+                response=response
+            )
+
+        response.raise_for_status()
+
+        result = response.json()
+        check_graphql_errors(result)  # Raise if GraphQL errors present
+
+        # Record success
+        if circuit_breaker:
+            await circuit_breaker.record_success()
+
+        return result
+
+    except Exception as e:
+        if circuit_breaker:
+            await circuit_breaker.record_failure(e)
+        raise
 
 
 @tracer.capture_method
@@ -96,8 +152,14 @@ def calculate_statistics(axies: list) -> dict:
     prices = []
     for axie in axies:
         if axie.get("order") and axie["order"].get("currentPrice"):
-            price_wei = int(axie["order"]["currentPrice"])
-            price_eth = Decimal(price_wei) / Decimal(10**18)
+            price_wei = axie["order"]["currentPrice"]
+            # Use validation utility for bounds checking
+            price_eth, error = safe_validate_price_wei(
+                price_wei, f"price for axie {axie.get('id', 'unknown')}"
+            )
+            if error:
+                logger.debug(f"Skipping invalid price: {error}")
+                continue
             prices.append(price_eth)
 
     if not prices:
@@ -143,6 +205,18 @@ def handler(event, context):
     timestamp = datetime.now(timezone.utc)
     logger.info(f"Starting price ingestion at {timestamp}")
 
+    # Initialize rate limiting components
+    rate_limiter = get_skymavis_rate_limiter()
+    circuit_breaker = get_skymavis_circuit_breaker()
+
+    logger.info(
+        "Rate limiting initialized",
+        extra={
+            "rate_limit": f"{rate_limiter.requests_per_minute} req/min",
+            "circuit_breaker_state": circuit_breaker.state.value,
+        },
+    )
+
     async def ingest():
         conn = get_db_connection()
         secrets = get_secrets()
@@ -159,6 +233,7 @@ def handler(event, context):
         )
 
         snapshots_stored = 0
+        errors_count = 0
 
         try:
             async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
@@ -166,7 +241,12 @@ def handler(event, context):
                 for axie_class in TRACKED_PARTS_BY_CLASS.keys():
                     try:
                         result = await fetch_floor_prices(
-                            client, axie_class, api_key=api_key, internal_secret=internal_secret
+                            client,
+                            axie_class,
+                            api_key=api_key,
+                            internal_secret=internal_secret,
+                            rate_limiter=rate_limiter,
+                            circuit_breaker=circuit_breaker,
                         )
                         axies = result.get("data", {}).get("axies", {}).get("results", [])
                         stats = calculate_statistics(axies)
@@ -180,41 +260,90 @@ def handler(event, context):
                             value=float(stats["floor_eth"]) if stats["floor_eth"] else 0
                         )
 
+                    except CircuitOpenError as e:
+                        logger.warning(f"Circuit open, skipping {axie_class}: {e}")
+                        errors_count += 1
+                        break  # Stop making requests when circuit is open
+
                     except Exception as e:
                         logger.error(f"Error fetching {axie_class}: {e}")
+                        errors_count += 1
                         metrics.add_metric(name="IngestionErrors", unit=MetricUnit.Count, value=1)
 
-                # Fetch part-level floor prices (sample parts)
-                for axie_class, parts in TRACKED_PARTS_BY_CLASS.items():
-                    for part_id in parts[:PARTS_SAMPLE_SIZE]:
-                        try:
-                            result = await fetch_floor_prices(
-                                client, axie_class, part_id, api_key=api_key, internal_secret=internal_secret
-                            )
-                            axies = result.get("data", {}).get("axies", {}).get("results", [])
-                            stats = calculate_statistics(axies)
+                # Skip part-level if circuit is open
+                if circuit_breaker.state.value == "open":
+                    logger.warning("Circuit breaker open, skipping part-level prices")
+                else:
+                    # Fetch part-level floor prices (sample parts)
+                    for axie_class, parts in TRACKED_PARTS_BY_CLASS.items():
+                        for part_id in parts[:PARTS_SAMPLE_SIZE]:
+                            try:
+                                result = await fetch_floor_prices(
+                                    client,
+                                    axie_class,
+                                    part_id,
+                                    api_key=api_key,
+                                    internal_secret=internal_secret,
+                                    rate_limiter=rate_limiter,
+                                    circuit_breaker=circuit_breaker,
+                                )
+                                axies = result.get("data", {}).get("axies", {}).get("results", [])
+                                stats = calculate_statistics(axies)
 
-                            store_snapshot(conn, timestamp, f"part:{part_id}", axie_class, stats)
-                            snapshots_stored += 1
+                                store_snapshot(conn, timestamp, f"part:{part_id}", axie_class, stats)
+                                snapshots_stored += 1
 
-                        except Exception as e:
-                            logger.error(f"Error fetching {axie_class}/{part_id}: {e}")
+                            except CircuitOpenError:
+                                logger.warning(f"Circuit open, stopping part-level ingestion")
+                                break
+
+                            except Exception as e:
+                                logger.error(f"Error fetching {axie_class}/{part_id}: {e}")
+                                errors_count += 1
+
+                        # Check if circuit opened during loop
+                        if circuit_breaker.state.value == "open":
+                            break
 
         finally:
             conn.close()
 
-        return snapshots_stored
+        # Log final circuit breaker state
+        logger.info(
+            "Ingestion complete",
+            extra={
+                "circuit_breaker_state": circuit_breaker.state.value,
+                "circuit_breaker_failures": circuit_breaker.failure_count,
+            },
+        )
 
-    snapshots = asyncio.run(ingest())
+        return snapshots_stored, errors_count
+
+    snapshots, errors = asyncio.run(ingest())
 
     metrics.add_metric(name="SnapshotsStored", unit=MetricUnit.Count, value=snapshots)
-    logger.info(f"Stored {snapshots} price snapshots")
+
+    # Publish circuit breaker metrics for CloudWatch alarms
+    circuit_state = circuit_breaker.state.value
+    metrics.add_metric(
+        name="CircuitBreakerOpen",
+        unit=MetricUnit.Count,
+        value=1 if circuit_state == "open" else 0
+    )
+    metrics.add_metric(
+        name="CircuitBreakerFailures",
+        unit=MetricUnit.Count,
+        value=circuit_breaker.failure_count
+    )
+
+    logger.info(f"Stored {snapshots} price snapshots, {errors} errors")
 
     return {
         "statusCode": 200,
         "body": json.dumps({
             "message": "Price ingestion complete",
             "snapshots_stored": snapshots,
+            "errors": errors,
             "timestamp": timestamp.isoformat(),
         }),
     }

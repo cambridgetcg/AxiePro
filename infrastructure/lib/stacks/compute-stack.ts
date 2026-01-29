@@ -14,6 +14,7 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
+import * as lambdaDestinations from 'aws-cdk-lib/aws-lambda-destinations';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as kms from 'aws-cdk-lib/aws-kms';
 import * as logs from 'aws-cdk-lib/aws-logs';
@@ -45,7 +46,9 @@ export interface ComputeStackProps extends cdk.StackProps {
   listingsStream: kinesis.IStream;
   dealAlertsTopic: sns.ITopic;
   batchQueue: sqs.IQueue;
+  deadLetterQueue: sqs.IQueue;  // DLQ for failed Lambda invocations
   ecrRepository: ecr.IRepository;
+  parameterPrefix: string;  // SSM Parameter Store prefix for configuration
   // IAM roles from Security stack
   appRunnerInstanceRole: iam.IRole;
   appRunnerAccessRole: iam.IRole;
@@ -84,7 +87,9 @@ export class ComputeStack extends cdk.Stack {
       listingsStream,
       dealAlertsTopic,
       batchQueue,
+      deadLetterQueue,
       ecrRepository,
+      parameterPrefix,
       appRunnerInstanceRole,
       appRunnerAccessRole,
       ecsTaskRole,
@@ -324,6 +329,23 @@ export class ComputeStack extends cdk.Stack {
     listingsStream.grantWrite(lambdaRole);
     dealAlertsTopic.grantPublish(lambdaRole);
     batchQueue.grantSendMessages(lambdaRole);
+    deadLetterQueue.grantSendMessages(lambdaRole);  // Allow Lambda to write to DLQ
+
+    // Grant SSM Parameter Store read access for configuration
+    lambdaRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'SSMParameterStoreAccess',
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'ssm:GetParameter',
+          'ssm:GetParameters',
+          'ssm:GetParametersByPath',
+        ],
+        resources: [
+          `arn:aws:ssm:${config.region}:${config.account}:parameter${parameterPrefix}/*`,
+        ],
+      })
+    );
 
     // Common Lambda environment variables
     const lambdaEnv = {
@@ -342,6 +364,7 @@ export class ComputeStack extends cdk.Stack {
       S3_DATA_BUCKET: dataBucket.bucketName,
       KINESIS_STREAM_NAME: listingsStream.streamName,
       SNS_DEAL_ALERTS_TOPIC: dealAlertsTopic.topicArn,
+      PARAMETER_PREFIX: parameterPrefix,  // SSM Parameter Store prefix for configuration
       POWERTOOLS_SERVICE_NAME: 'axiepro',
       POWERTOOLS_METRICS_NAMESPACE: 'AxiePro',
       LOG_LEVEL: config.name === 'development' ? 'DEBUG' : 'INFO',
@@ -356,13 +379,51 @@ export class ComputeStack extends cdk.Stack {
       removalPolicy: config.removalPolicy,
     });
 
+    // Common Lambda code asset with exclusions to avoid packaging venv and other unnecessary files
+    const lambdaCodeAsset = lambda.Code.fromAsset('../backend', {
+      exclude: [
+        'venv',
+        'venv/**',
+        '.venv',
+        '.venv/**',
+        '__pycache__',
+        '**/__pycache__',
+        '*.pyc',
+        '**/*.pyc',
+        'tests',
+        'tests/**',
+        'lambda-layer',
+        'lambda-layer/**',
+        '.git',
+        '.git/**',
+        '.pytest_cache',
+        '**/.pytest_cache',
+        '*.egg-info',
+        '**/*.egg-info',
+        'dist',
+        'dist/**',
+        'build',
+        'build/**',
+        '.mypy_cache',
+        '**/.mypy_cache',
+        '.ruff_cache',
+        '**/.ruff_cache',
+        'htmlcov',
+        'htmlcov/**',
+        '.coverage',
+        '*.md',
+        'Dockerfile',
+        'docker-compose*.yml',
+      ],
+    });
+
     // 1. Price Ingestion Lambda
     const priceIngestionLambda = new lambda.Function(this, 'PriceIngestionLambda', {
       functionName: getResourceName('price-ingestion', config),
       description: 'Fetches floor prices from Sky Mavis and stores snapshots',
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'src.lambdas.price_ingestion.handler',
-      code: lambda.Code.fromAsset('../backend'),
+      code: lambdaCodeAsset,
       layers: [dependenciesLayer],
       memorySize: config.compute.lambda.memorySize,
       timeout: config.compute.lambda.timeout,
@@ -378,13 +439,19 @@ export class ComputeStack extends cdk.Stack {
     });
     this.lambdaFunctions['priceIngestion'] = priceIngestionLambda;
 
+    // Configure DLQ for async invocations (EventBridge scheduled)
+    priceIngestionLambda.configureAsyncInvoke({
+      onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
+      retryAttempts: 2,
+    });
+
     // 2. Sales Ingestion Lambda
     const salesIngestionLambda = new lambda.Function(this, 'SalesIngestionLambda', {
       functionName: getResourceName('sales-ingestion', config),
       description: 'Fetches settled sales from Sky Mavis and stores in database',
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'src.lambdas.sales_ingestion.handler',
-      code: lambda.Code.fromAsset('../backend'),
+      code: lambdaCodeAsset,
       layers: [dependenciesLayer],
       memorySize: config.compute.lambda.memorySize,
       timeout: cdk.Duration.minutes(3), // Longer timeout for pagination
@@ -400,13 +467,47 @@ export class ComputeStack extends cdk.Stack {
     });
     this.lambdaFunctions['salesIngestion'] = salesIngestionLambda;
 
-    // 3. Deal Detector Lambda (triggered by Kinesis)
+    // Configure DLQ for async invocations (EventBridge scheduled)
+    salesIngestionLambda.configureAsyncInvoke({
+      onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
+      retryAttempts: 2,
+    });
+
+    // 3. Listings Ingestion Lambda - publishes to Kinesis for deal detection
+    const listingsIngestionLambda = new lambda.Function(this, 'ListingsIngestionLambda', {
+      functionName: getResourceName('listings-ingestion', config),
+      description: 'Fetches active listings and publishes to Kinesis for deal detection',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'src.lambdas.listings_ingestion.handler',
+      code: lambdaCodeAsset,
+      layers: [dependenciesLayer],
+      memorySize: config.compute.lambda.memorySize,
+      timeout: cdk.Duration.minutes(5), // Longer timeout for multi-class pagination
+      role: lambdaRole,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSecurityGroup],
+      environment: lambdaEnv,
+      tracing: config.monitoring.enableXRay
+        ? lambda.Tracing.ACTIVE
+        : lambda.Tracing.DISABLED,
+      reservedConcurrentExecutions: config.compute.lambda.reservedConcurrency,
+    });
+    this.lambdaFunctions['listingsIngestion'] = listingsIngestionLambda;
+
+    // Configure DLQ for async invocations (EventBridge scheduled)
+    listingsIngestionLambda.configureAsyncInvoke({
+      onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
+      retryAttempts: 2,
+    });
+
+    // 5. Deal Detector Lambda (triggered by Kinesis)
     const dealDetectorLambda = new lambda.Function(this, 'DealDetectorLambda', {
       functionName: getResourceName('deal-detector', config),
       description: 'Detects undervalued listings from Kinesis stream',
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'src.lambdas.deal_detector.handler',
-      code: lambda.Code.fromAsset('../backend'),
+      code: lambdaCodeAsset,
       layers: [dependenciesLayer],
       memorySize: config.compute.lambda.memorySize,
       timeout: cdk.Duration.seconds(30),
@@ -421,7 +522,7 @@ export class ComputeStack extends cdk.Stack {
     });
     this.lambdaFunctions['dealDetector'] = dealDetectorLambda;
 
-    // Add Kinesis event source
+    // Add Kinesis event source with DLQ for failed record batches
     dealDetectorLambda.addEventSource(
       new lambdaEventSources.KinesisEventSource(listingsStream, {
         batchSize: 100,
@@ -430,16 +531,17 @@ export class ComputeStack extends cdk.Stack {
         retryAttempts: 3,
         bisectBatchOnError: true,
         reportBatchItemFailures: true,
+        onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
       })
     );
 
-    // 4. Meta Analyzer Lambda
+    // 6. Meta Analyzer Lambda
     const metaAnalyzerLambda = new lambda.Function(this, 'MetaAnalyzerLambda', {
       functionName: getResourceName('meta-analyzer', config),
       description: 'Analyzes market trends and detects meta shifts',
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'src.lambdas.meta_analyzer.handler',
-      code: lambda.Code.fromAsset('../backend'),
+      code: lambdaCodeAsset,
       layers: [dependenciesLayer],
       memorySize: 1024, // Needs more memory for analysis
       timeout: cdk.Duration.minutes(5),
@@ -454,13 +556,19 @@ export class ComputeStack extends cdk.Stack {
     });
     this.lambdaFunctions['metaAnalyzer'] = metaAnalyzerLambda;
 
-    // 5. Valuation Lambda
+    // Configure DLQ for async invocations (EventBridge scheduled)
+    metaAnalyzerLambda.configureAsyncInvoke({
+      onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
+      retryAttempts: 2,
+    });
+
+    // 7. Valuation Lambda
     const valuationLambda = new lambda.Function(this, 'ValuationLambda', {
       functionName: getResourceName('valuation', config),
       description: 'Computes fair value estimates for Axies',
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'src.lambdas.valuation.handler',
-      code: lambda.Code.fromAsset('../backend'),
+      code: lambdaCodeAsset,
       layers: [dependenciesLayer],
       memorySize: config.compute.lambda.memorySize,
       timeout: cdk.Duration.seconds(30),
@@ -475,24 +583,59 @@ export class ComputeStack extends cdk.Stack {
     });
     this.lambdaFunctions['valuation'] = valuationLambda;
 
+    // 8. Health Check Lambda - monitors data freshness
+    const healthCheckLambda = new lambda.Function(this, 'HealthCheckLambda', {
+      functionName: getResourceName('health-check', config),
+      description: 'Monitors data freshness and pipeline health',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'src.lambdas.health_check.handler',
+      code: lambdaCodeAsset,
+      layers: [dependenciesLayer],
+      memorySize: config.compute.lambda.memorySize,
+      timeout: cdk.Duration.seconds(30),
+      role: lambdaRole,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSecurityGroup],
+      environment: lambdaEnv,
+      tracing: config.monitoring.enableXRay
+        ? lambda.Tracing.ACTIVE
+        : lambda.Tracing.DISABLED,
+    });
+    this.lambdaFunctions['healthCheck'] = healthCheckLambda;
+
+    // Configure DLQ for async invocations (EventBridge scheduled)
+    healthCheckLambda.configureAsyncInvoke({
+      onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
+      retryAttempts: 2,
+    });
+
     // ========================================================================
     // EventBridge Rules (Scheduled Triggers)
     // ========================================================================
 
-    // Price ingestion - every 5 minutes
+    // Price ingestion - every 15 minutes (reduced from 5 to avoid rate limiting)
     new events.Rule(this, 'PriceIngestionSchedule', {
       ruleName: getResourceName('price-ingestion-trigger', config),
-      description: 'Triggers price ingestion every 5 minutes',
-      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+      description: 'Triggers price ingestion every 15 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(15)),
       targets: [new targets.LambdaFunction(priceIngestionLambda)],
     });
 
-    // Sales ingestion - every 15 minutes
+    // Sales ingestion - every 30 minutes (reduced from 15 to avoid rate limiting)
     new events.Rule(this, 'SalesIngestionSchedule', {
       ruleName: getResourceName('sales-ingestion-trigger', config),
-      description: 'Triggers sales ingestion every 15 minutes',
-      schedule: events.Schedule.rate(cdk.Duration.minutes(15)),
+      description: 'Triggers sales ingestion every 30 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(30)),
       targets: [new targets.LambdaFunction(salesIngestionLambda)],
+    });
+
+    // Listings ingestion - every 5 minutes (publishes to Kinesis for deal detection)
+    new events.Rule(this, 'ListingsIngestionSchedule', {
+      ruleName: getResourceName('listings-ingestion-trigger', config),
+      description: 'Triggers listings ingestion every 5 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+      targets: [new targets.LambdaFunction(listingsIngestionLambda)],
     });
 
     // Meta analysis - every hour
@@ -501,6 +644,14 @@ export class ComputeStack extends cdk.Stack {
       description: 'Triggers meta analysis every hour',
       schedule: events.Schedule.rate(cdk.Duration.hours(1)),
       targets: [new targets.LambdaFunction(metaAnalyzerLambda)],
+    });
+
+    // Health check - every 5 minutes (monitors data freshness)
+    new events.Rule(this, 'HealthCheckSchedule', {
+      ruleName: getResourceName('health-check-trigger', config),
+      description: 'Triggers health check every 5 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+      targets: [new targets.LambdaFunction(healthCheckLambda)],
     });
 
     // ========================================================================
@@ -547,6 +698,18 @@ export class ComputeStack extends cdk.Stack {
       value: salesIngestionLambda.functionArn,
       description: 'Sales ingestion Lambda ARN',
       exportName: `${id}-SalesIngestionLambdaArn`,
+    });
+
+    new cdk.CfnOutput(this, 'ListingsIngestionLambdaArn', {
+      value: listingsIngestionLambda.functionArn,
+      description: 'Listings ingestion Lambda ARN',
+      exportName: `${id}-ListingsIngestionLambdaArn`,
+    });
+
+    new cdk.CfnOutput(this, 'HealthCheckLambdaArn', {
+      value: healthCheckLambda.functionArn,
+      description: 'Health check Lambda ARN',
+      exportName: `${id}-HealthCheckLambdaArn`,
     });
 
     // Add tags

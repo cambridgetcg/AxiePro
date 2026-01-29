@@ -23,9 +23,14 @@ numpy>=1.26.3
 
 # Validation
 pydantic>=2.5.3
+pydantic-settings>=2.1.0
 
 # AWS Lambda Powertools
 aws-lambda-powertools>=2.32.0
+aws-xray-sdk>=2.12.0
 
 # JSON handling
 orjson>=3.9.12
+
+# Retry/Resilience
+tenacity>=8.2.0
