@@ -452,10 +452,32 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS breed_count SMALLINT DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_listings_class_status_price
 ON listings (class_, status, price_eth)
 WHERE status = 'active';
+""",
+    "f6g7h8i9j0k1": """
+-- Migration: f6g7h8i9j0k1 - Drop sales FK constraint
+-- Removes the foreign key constraint that requires axie metadata
+-- to exist before sales can be inserted. Sales can be inserted independently
+-- and linked to metadata later.
+
+-- Drop the FK constraint on sales table
+ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_axie_id_fkey;
+
+-- Add a comment explaining why
+COMMENT ON TABLE sales IS 'Axie sales data. FK to axies removed to allow independent ingestion. Metadata linked via axie_id when available.';
+
+-- Create ingestion_metadata table for tracking block progress
+CREATE TABLE IF NOT EXISTS ingestion_metadata (
+    key             VARCHAR(100) PRIMARY KEY,
+    value           TEXT NOT NULL,
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE ingestion_metadata IS 'Tracks ingestion progress for resumable data pipelines';
 """
 }
 
-MIGRATION_ORDER = ["43e76aaf7374", "b7e2f3a4c5d6", "c3d4e5f6g7h8", "d4e5f6g7h8i9", "e5f6g7h8i9j0"]
+MIGRATION_ORDER = ["43e76aaf7374", "b7e2f3a4c5d6", "c3d4e5f6g7h8", "d4e5f6g7h8i9", "e5f6g7h8i9j0", "f6g7h8i9j0k1"]
 
 
 def get_current_revision(conn) -> str:
