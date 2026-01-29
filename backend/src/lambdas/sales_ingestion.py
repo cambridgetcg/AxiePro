@@ -108,6 +108,19 @@ async def fetch_settled_sales(
         # Handle rate limiting from API
         if response.status_code == 429:
             retry_after = int(response.headers.get("Retry-After", 30))
+            # Cap retry wait to avoid Lambda timeout - let the next scheduled run handle it
+            max_wait = 10  # Max 10 seconds wait within Lambda
+            if retry_after > max_wait:
+                logger.warning(
+                    f"API rate limited (429), retry_after={retry_after}s exceeds max_wait={max_wait}s, failing fast"
+                )
+                if circuit_breaker:
+                    await circuit_breaker.record_failure(Exception("Rate limited - long wait"))
+                raise httpx.HTTPStatusError(
+                    f"Rate limited (retry_after={retry_after}s)",
+                    request=response.request,
+                    response=response
+                )
             logger.warning(f"API rate limited (429), waiting {retry_after}s")
             if circuit_breaker:
                 await circuit_breaker.record_failure(Exception("Rate limited"))
