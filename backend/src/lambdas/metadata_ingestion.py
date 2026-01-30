@@ -39,10 +39,10 @@ from src.lambdas.common import (
 
 
 # Configuration
-AXIES_PER_BATCH = 10  # Reduced batch size to avoid rate limits
-MAX_AXIES_PER_RUN = 100  # Limit per invocation (conservative for rate limits)
+AXIES_PER_BATCH = 1  # Single axie to minimize rate limit impact
+MAX_AXIES_PER_RUN = 20  # Very conservative - 20 axies per hourly run
 MORALIS_TRANSFERS_LIMIT = 100  # Per page
-BATCH_DELAY_SECONDS = 1.0  # Delay between SkyMavis API calls
+BATCH_DELAY_SECONDS = 3.0  # 3 second delay between SkyMavis API calls
 
 
 # GraphQL query for axie metadata
@@ -441,6 +441,10 @@ def handler(event, context):
                         await asyncio.sleep(BATCH_DELAY_SECONDS)
 
                     except Exception as e:
+                        error_msg = str(e)
+                        if "429" in error_msg or "Too Many Requests" in error_msg:
+                            logger.warning(f"Rate limited at batch {i}, stopping to avoid further limits")
+                            break  # Stop processing - we're rate limited
                         logger.error(f"Error processing batch at {i}: {e}")
                         continue
 
