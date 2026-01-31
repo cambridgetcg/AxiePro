@@ -21,6 +21,9 @@ from src.services.valuation import HedonicValuationService, ValuationResult
 from src.services.cache import get_cache_manager, RedisCacheManager
 from src.services.scoring import NormalizedDealScorer
 from src.services.deals_aggregator import DealsAggregatorService, get_deals_aggregator
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/valuation", tags=["valuation"])
 
