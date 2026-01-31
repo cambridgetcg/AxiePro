@@ -474,10 +474,103 @@ CREATE TABLE IF NOT EXISTS ingestion_metadata (
 );
 
 COMMENT ON TABLE ingestion_metadata IS 'Tracks ingestion progress for resumable data pipelines';
+""",
+    "g7h8i9j0k1l2": """
+-- Migration: g7h8i9j0k1l2 - Add deal_alerts table for real-time scanner
+-- Enables real-time deal detection and alerting system.
+-- Part of API key full utilization strategy (using 8.6% of daily capacity).
+
+CREATE TABLE IF NOT EXISTS deal_alerts (
+    id SERIAL PRIMARY KEY,
+    listing_id VARCHAR(200) UNIQUE NOT NULL,
+    axie_id BIGINT NOT NULL,
+    class VARCHAR(20) NOT NULL,
+    price_eth DECIMAL(20,8) NOT NULL,
+    fair_value_eth DECIMAL(20,8) NOT NULL,
+    discount_pct DECIMAL(6,2) NOT NULL,
+    metadata JSONB,
+    detected_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    alerted BOOLEAN DEFAULT false,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Index for quick lookups
+CREATE INDEX IF NOT EXISTS idx_deal_alerts_axie ON deal_alerts(axie_id);
+CREATE INDEX IF NOT EXISTS idx_deal_alerts_detected ON deal_alerts(detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_deal_alerts_class ON deal_alerts(class);
+CREATE INDEX IF NOT EXISTS idx_deal_alerts_discount ON deal_alerts(discount_pct DESC);
+
+-- Index for deduplication
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deal_alerts_listing ON deal_alerts(listing_id);
+
+COMMENT ON TABLE deal_alerts IS 'Real-time deal detection alerts. Scanner runs every 5 minutes to catch underpriced listings.';
+""",
+    "h8i9j0k1l2m3": """
+-- Migration: h8i9j0k1l2m3 - Add breeding_outcomes table for breeding simulator
+-- Enables breeding intelligence and probability calculations.
+-- Part of API key full utilization strategy (using 10% of daily capacity).
+
+CREATE TABLE IF NOT EXISTS breeding_outcomes (
+    id SERIAL PRIMARY KEY,
+    parent1_id BIGINT NOT NULL,
+    parent2_id BIGINT NOT NULL,
+    offspring_count INT NOT NULL,
+    class_distribution JSONB NOT NULL,
+    purity_distribution JSONB NOT NULL,
+    avg_purity DECIMAL(4,2) NOT NULL,
+    premium_rate DECIMAL(5,3) NOT NULL,
+    sample_size INT NOT NULL,
+    last_updated TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT unique_parent_pair UNIQUE(parent1_id, parent2_id)
+);
+
+-- Indexes for breeding queries
+CREATE INDEX IF NOT EXISTS idx_breeding_parent1 ON breeding_outcomes(parent1_id);
+CREATE INDEX IF NOT EXISTS idx_breeding_parent2 ON breeding_outcomes(parent2_id);
+CREATE INDEX IF NOT EXISTS idx_breeding_premium_rate ON breeding_outcomes(premium_rate DESC);
+CREATE INDEX IF NOT EXISTS idx_breeding_sample_size ON breeding_outcomes(sample_size DESC);
+CREATE INDEX IF NOT EXISTS idx_breeding_updated ON breeding_outcomes(last_updated DESC);
+
+-- Index for reverse lookup (parent2, parent1)
+CREATE INDEX IF NOT EXISTS idx_breeding_reverse ON breeding_outcomes(parent2_id, parent1_id);
+
+COMMENT ON TABLE breeding_outcomes IS 'Breeding probability data from historical outcomes. Enables breeding ROI calculator and genetic analysis.';
+COMMENT ON COLUMN breeding_outcomes.class_distribution IS 'JSON object mapping class name to probability (e.g., {"beast": 0.6, "plant": 0.4})';
+COMMENT ON COLUMN breeding_outcomes.purity_distribution IS 'JSON object mapping purity score to probability (e.g., {"6": 0.3, "5": 0.5})';
+COMMENT ON COLUMN breeding_outcomes.premium_rate IS 'Percentage of offspring with purity >= 5 (premium quality)';
+""",
+    "i9j0k1l2m3n4": """
+-- Migration: i9j0k1l2m3n4 - Add market_depth table for market depth analyzer
+-- Enables liquidity tracking and market health metrics.
+-- Part of API key full utilization strategy (using 7.2% of daily capacity).
+
+CREATE TABLE IF NOT EXISTS market_depth (
+    id SERIAL PRIMARY KEY,
+    class VARCHAR(20) NOT NULL,
+    price_min_eth DECIMAL(20,8) NOT NULL,
+    price_max_eth DECIMAL(20,8) NOT NULL,
+    listing_count INT NOT NULL,
+    snapshot_time TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for market depth queries
+CREATE INDEX IF NOT EXISTS idx_market_depth_class ON market_depth(class);
+CREATE INDEX IF NOT EXISTS idx_market_depth_time ON market_depth(snapshot_time DESC);
+CREATE INDEX IF NOT EXISTS idx_market_depth_class_time ON market_depth(class, snapshot_time DESC);
+CREATE INDEX IF NOT EXISTS idx_market_depth_price_range ON market_depth(price_min_eth, price_max_eth);
+
+-- Index for time-series analysis
+CREATE INDEX IF NOT EXISTS idx_market_depth_class_price_time
+ON market_depth(class, price_min_eth, price_max_eth, snapshot_time DESC);
+
+COMMENT ON TABLE market_depth IS 'Market depth snapshots tracking liquidity by class and price range. Updated hourly.';
+COMMENT ON COLUMN market_depth.listing_count IS 'Number of active listings in this price range at snapshot time';
 """
 }
 
-MIGRATION_ORDER = ["43e76aaf7374", "b7e2f3a4c5d6", "c3d4e5f6g7h8", "d4e5f6g7h8i9", "e5f6g7h8i9j0", "f6g7h8i9j0k1"]
+MIGRATION_ORDER = ["43e76aaf7374", "b7e2f3a4c5d6", "c3d4e5f6g7h8", "d4e5f6g7h8i9", "e5f6g7h8i9j0", "f6g7h8i9j0k1", "g7h8i9j0k1l2", "h8i9j0k1l2m3", "i9j0k1l2m3n4"]
 
 
 def get_current_revision(conn) -> str:

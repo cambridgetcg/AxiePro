@@ -501,6 +501,93 @@ export class ComputeStack extends cdk.Stack {
       retryAttempts: 2,
     });
 
+    // 3b. Real-time Scanner Lambda - scans new listings for deals every 5 minutes
+    // Uses 8.6% of API capacity (1.7k requests/day) to provide first-mover advantage
+    const realTimeScannerLambda = new lambda.Function(this, 'RealTimeScannerLambda', {
+      functionName: getResourceName('real-time-scanner', config),
+      description: 'Scans recent listings every 5 minutes for underpriced deals',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'src.lambdas.real_time_scanner.handler',
+      code: lambdaCodeAsset,
+      layers: [dependenciesLayer],
+      memorySize: config.compute.lambda.memorySize,
+      timeout: cdk.Duration.minutes(2), // Quick scans should complete fast
+      role: lambdaRole,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSecurityGroup],
+      environment: lambdaEnv,
+      tracing: config.monitoring.enableXRay
+        ? lambda.Tracing.ACTIVE
+        : lambda.Tracing.DISABLED,
+      reservedConcurrentExecutions: config.compute.lambda.reservedConcurrency,
+    });
+    this.lambdaFunctions['realTimeScanner'] = realTimeScannerLambda;
+
+    // Configure DLQ for async invocations
+    realTimeScannerLambda.configureAsyncInvoke({
+      onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
+      retryAttempts: 2,
+    });
+
+    // 3c. Breeding Simulator Lambda - builds breeding intelligence database
+    // Uses 10% of API capacity (2k requests/day) to enable breeding ROI calculator
+    const breedingSimulatorLambda = new lambda.Function(this, 'BreedingSimulatorLambda', {
+      functionName: getResourceName('breeding-simulator', config),
+      description: 'Analyzes breeding outcomes to build probability database',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'src.lambdas.breeding_simulator.handler',
+      code: lambdaCodeAsset,
+      layers: [dependenciesLayer],
+      memorySize: 512, // More memory for data processing
+      timeout: cdk.Duration.minutes(10), // Longer timeout for batch analysis
+      role: lambdaRole,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSecurityGroup],
+      environment: lambdaEnv,
+      tracing: config.monitoring.enableXRay
+        ? lambda.Tracing.ACTIVE
+        : lambda.Tracing.DISABLED,
+      reservedConcurrentExecutions: config.compute.lambda.reservedConcurrency,
+    });
+    this.lambdaFunctions['breedingSimulator'] = breedingSimulatorLambda;
+
+    // Configure DLQ for async invocations
+    breedingSimulatorLambda.configureAsyncInvoke({
+      onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
+      retryAttempts: 2,
+    });
+
+    // 3d. Market Depth Analyzer Lambda - tracks order book depth hourly
+    // Uses 7.2% of API capacity (1.4k requests/day) for liquidity intelligence
+    const marketDepthAnalyzerLambda = new lambda.Function(this, 'MarketDepthAnalyzerLambda', {
+      functionName: getResourceName('market-depth-analyzer', config),
+      description: 'Tracks order book depth across all axie classes hourly',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'src.lambdas.market_depth_analyzer.handler',
+      code: lambdaCodeAsset,
+      layers: [dependenciesLayer],
+      memorySize: 512, // More memory for concurrent requests
+      timeout: cdk.Duration.minutes(5), // Analysis across 60 price buckets
+      role: lambdaRole,
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [lambdaSecurityGroup],
+      environment: lambdaEnv,
+      tracing: config.monitoring.enableXRay
+        ? lambda.Tracing.ACTIVE
+        : lambda.Tracing.DISABLED,
+      reservedConcurrentExecutions: config.compute.lambda.reservedConcurrency,
+    });
+    this.lambdaFunctions['marketDepthAnalyzer'] = marketDepthAnalyzerLambda;
+
+    // Configure DLQ for async invocations
+    marketDepthAnalyzerLambda.configureAsyncInvoke({
+      onFailure: new lambdaDestinations.SqsDestination(deadLetterQueue),
+      retryAttempts: 2,
+    });
+
     // 4. Listings Ingestion Lambda - publishes to Kinesis for deal detection
     const listingsIngestionLambda = new lambda.Function(this, 'ListingsIngestionLambda', {
       functionName: getResourceName('listings-ingestion', config),
@@ -687,12 +774,40 @@ export class ComputeStack extends cdk.Stack {
       targets: [new targets.LambdaFunction(listingsIngestionLambda)],
     });
 
-    // Metadata ingestion - every hour (backfills axie metadata)
+    // Real-time scanner - every 5 minutes (scans for underpriced deals)
+    // Uses 8.6% of API capacity for first-mover advantage in deal detection
+    new events.Rule(this, 'RealTimeScannerSchedule', {
+      ruleName: getResourceName('real-time-scanner-trigger', config),
+      description: 'Triggers real-time market scanner every 5 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+      targets: [new targets.LambdaFunction(realTimeScannerLambda)],
+    });
+
+    // Metadata ingestion - every 30 minutes (backfills axie metadata)
+    // Optimized for new SkyMavis API key with higher rate limits
     new events.Rule(this, 'MetadataIngestionSchedule', {
       ruleName: getResourceName('metadata-ingestion-trigger', config),
-      description: 'Triggers metadata ingestion every hour',
-      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      description: 'Triggers metadata ingestion every 30 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(30)),
       targets: [new targets.LambdaFunction(metadataIngestionLambda)],
+    });
+
+    // Breeding simulator - daily (builds breeding intelligence database)
+    // Uses 10% of API capacity for breeding ROI calculator
+    new events.Rule(this, 'BreedingSimulatorSchedule', {
+      ruleName: getResourceName('breeding-simulator-trigger', config),
+      description: 'Triggers breeding analysis once daily',
+      schedule: events.Schedule.rate(cdk.Duration.days(1)),
+      targets: [new targets.LambdaFunction(breedingSimulatorLambda)],
+    });
+
+    // Market depth analyzer - hourly (tracks liquidity across price buckets)
+    // Uses 7.2% of API capacity for market depth intelligence
+    new events.Rule(this, 'MarketDepthAnalyzerSchedule', {
+      ruleName: getResourceName('market-depth-analyzer-trigger', config),
+      description: 'Triggers market depth analysis every hour',
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      targets: [new targets.LambdaFunction(marketDepthAnalyzerLambda)],
     });
 
     // Meta analysis - every hour
@@ -761,6 +876,24 @@ export class ComputeStack extends cdk.Stack {
       value: metadataIngestionLambda.functionArn,
       description: 'Metadata ingestion Lambda ARN',
       exportName: `${id}-MetadataIngestionLambdaArn`,
+    });
+
+    new cdk.CfnOutput(this, 'RealTimeScannerLambdaArn', {
+      value: realTimeScannerLambda.functionArn,
+      description: 'Real-time market scanner Lambda ARN',
+      exportName: `${id}-RealTimeScannerLambdaArn`,
+    });
+
+    new cdk.CfnOutput(this, 'BreedingSimulatorLambdaArn', {
+      value: breedingSimulatorLambda.functionArn,
+      description: 'Breeding simulator Lambda ARN',
+      exportName: `${id}-BreedingSimulatorLambdaArn`,
+    });
+
+    new cdk.CfnOutput(this, 'MarketDepthAnalyzerLambdaArn', {
+      value: marketDepthAnalyzerLambda.functionArn,
+      description: 'Market depth analyzer Lambda ARN',
+      exportName: `${id}-MarketDepthAnalyzerLambdaArn`,
     });
 
     new cdk.CfnOutput(this, 'ListingsIngestionLambdaArn', {
