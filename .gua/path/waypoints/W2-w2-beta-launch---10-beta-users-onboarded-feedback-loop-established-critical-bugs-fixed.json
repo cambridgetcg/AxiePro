@@ -1,0 +1,12 @@
+{
+  "id": "W2",
+  "name": "W2: Beta Launch - 10 beta users onboarded, feedback loop established, critical bugs fixed",
+  "predecessor": "CURRENT_STATE",
+  "successor": null,
+  "status": "pending",
+  "impl": 0,
+  "depth": "L0",
+  "createdAt": "2026-01-30T16:31:48Z",
+  "updatedAt": "2026-01-30T16:31:48Z",
+  "validatedAt": null
+}
