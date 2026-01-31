@@ -127,6 +127,21 @@ function ConfidenceBar({ confidence }: { confidence: number }) {
  */
 export function ValuationBreakdown({ valuation, className }: ValuationBreakdownProps) {
   const { deal_analysis, market_context, feature_contributions } = valuation;
+
+  // Handle unavailable valuation
+  if (!valuation.valuation || !deal_analysis || !market_context) {
+    return (
+      <Card className={cn('border-muted', className)}>
+        <CardContent className="py-8 text-center">
+          <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            {valuation.metadata?.reason || 'Valuation data unavailable'}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const fairValue = valuation.valuation.ensemble_eth ?? valuation.valuation.hedonic_eth ?? 0;
   const listingPrice = market_context.current_listing_eth ?? 0;
   const classFloor = market_context.class_floor_eth ?? 0;
