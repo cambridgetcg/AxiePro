@@ -5,7 +5,7 @@ from .axie import Axie, Part, AxiePart, Ability, AxieClass, PartType, GeneType
 from .market import Listing, Sale, PriceHistory, PriceSnapshot, MarketStats
 from .meta import MetaShift, ShiftType
 from .deals import DetectedDeal, DealStatus
-from .wallet import Wallet, WalletHolding
+from .wallet import Wallet, WalletHolding, TokenType, WalletTokenBalance
 from .breeding import BreedingPair, Breed
 from .auth import AuthChallenge
 from .instrumentation import (
@@ -44,6 +44,7 @@ __all__ = [
     # Wallet models
     "Wallet",
     "WalletHolding",
+    "WalletTokenBalance",
     # Breeding models
     "BreedingPair",
     "Breed",
@@ -59,4 +60,5 @@ __all__ = [
     "GeneType",
     "EventType",
     "Feature",
+    "TokenType",
 ]

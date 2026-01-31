@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 
 from src.models import Wallet, WalletHolding, Axie, Sale, get_db
 from src.services.moralis_client import MoralisClient
+from src.services.wallet_balance_service import WalletBalanceService, get_wallet_balance_service
 from src.api.deps import get_authenticated_wallet
 
 router = APIRouter(prefix="/wallets", tags=["wallets"])
@@ -592,4 +593,140 @@ async def update_holding_cost_basis(
             "unrealized_pnl_percent": float(holding.unrealized_pnl_percent) if holding.unrealized_pnl_percent else None,
         },
         "message": "Cost basis updated successfully",
+    }
+
+
+# =========================================================================
+# Wallet Token Balance Endpoints
+# =========================================================================
+
+class TokenBalance(BaseModel):
+    """Individual token balance data."""
+    token: str
+    balance: float
+    balance_usd: Optional[float]
+    token_price_usd: Optional[float]
+    last_updated: str
+
+
+class WalletBalancesResponse(BaseModel):
+    """Response for wallet balance endpoints."""
+    success: bool
+    data: dict[str, TokenBalance]
+    meta: dict
+
+
+@router.get("/{address}/balances", response_model=WalletBalancesResponse)
+async def get_wallet_balances(
+    address: str,
+    force_refresh: bool = Query(
+        False,
+        description="Force refresh from blockchain (skip cache)"
+    ),
+    balance_service: WalletBalanceService = Depends(get_wallet_balance_service),
+):
+    """
+    Get token balances for a wallet.
+
+    Returns current balances for all supported tokens:
+    - RON (Native Ronin token)
+    - WETH (Wrapped ETH - Axie marketplace currency)
+    - WRON (Wrapped RON)
+    - AXS (Axie Infinity Shards)
+    - SLP (Smooth Love Potion)
+
+    **Caching**: Balances are cached for 5 minutes by default.
+    Use `force_refresh=true` to bypass cache and fetch directly from blockchain.
+
+    **USD Values**: Token prices are currently from config (future: price oracle).
+    """
+    address = address.lower()
+
+    # Fetch balances via service (handles caching)
+    balances = await balance_service.get_balances(
+        wallet_address=address,
+        force_refresh=force_refresh,
+    )
+
+    # Convert BalanceData to API response format
+    balance_responses = {}
+    for token, balance_data in balances.items():
+        balance_responses[token] = TokenBalance(
+            token=balance_data.token,
+            balance=float(balance_data.balance),
+            balance_usd=float(balance_data.balance_usd) if balance_data.balance_usd else None,
+            token_price_usd=float(balance_data.token_price_usd) if balance_data.token_price_usd else None,
+            last_updated=balance_data.last_updated.isoformat(),
+        )
+
+    # Calculate total portfolio value in USD
+    total_usd = sum(
+        float(b.balance_usd) if b.balance_usd else 0
+        for b in balances.values()
+    )
+
+    return {
+        "success": True,
+        "data": balance_responses,
+        "meta": {
+            "wallet_address": address,
+            "total_usd": round(total_usd, 2),
+            "token_count": len(balances),
+            "timestamp": datetime.utcnow().isoformat(),
+            "from_cache": not force_refresh,
+        }
+    }
+
+
+@router.post("/{address}/balances/refresh")
+async def refresh_wallet_balances(
+    address: str,
+    balance_service: WalletBalanceService = Depends(get_wallet_balance_service),
+):
+    """
+    Force refresh wallet balances from blockchain.
+
+    Bypasses all caches and fetches fresh balance data directly from
+    Ronin RPC. Updates database and Redis cache with new values.
+
+    Use this endpoint:
+    - After making a transaction
+    - When real-time accuracy is needed
+    - To verify cached balances
+
+    **Rate Limits**: Calls Ronin RPC directly (5 calls per wallet).
+    Cached for 5 minutes after refresh.
+    """
+    address = address.lower()
+
+    # Force refresh from blockchain
+    balances = await balance_service.refresh_balances(wallet_address=address)
+
+    # Convert to response format
+    balance_responses = {}
+    for token, balance_data in balances.items():
+        balance_responses[token] = TokenBalance(
+            token=balance_data.token,
+            balance=float(balance_data.balance),
+            balance_usd=float(balance_data.balance_usd) if balance_data.balance_usd else None,
+            token_price_usd=float(balance_data.token_price_usd) if balance_data.token_price_usd else None,
+            last_updated=balance_data.last_updated.isoformat(),
+        )
+
+    total_usd = sum(
+        float(b.balance_usd) if b.balance_usd else 0
+        for b in balances.values()
+    )
+
+    return {
+        "success": True,
+        "data": balance_responses,
+        "meta": {
+            "wallet_address": address,
+            "total_usd": round(total_usd, 2),
+            "token_count": len(balances),
+            "timestamp": datetime.utcnow().isoformat(),
+            "refreshed_from_blockchain": True,
+        },
+        "message": "Balances refreshed successfully from blockchain",
     }
