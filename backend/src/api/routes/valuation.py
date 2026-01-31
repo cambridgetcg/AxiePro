@@ -32,14 +32,14 @@ router = APIRouter(prefix="/valuation", tags=["valuation"])
 class ValuationResponse(BaseModel):
     """Response for single Axie valuation."""
     axie_id: int
-    valuation: dict = Field(..., description="Value estimates with confidence intervals")
-    market_context: dict = Field(..., description="Floor prices and market averages")
-    deal_analysis: dict = Field(..., description="Discount percent, z-score, deal status")
+    valuation: Optional[dict] = Field(None, description="Value estimates with confidence intervals (null if unavailable)")
+    market_context: Optional[dict] = Field(None, description="Floor prices and market averages (null if unavailable)")
+    deal_analysis: Optional[dict] = Field(None, description="Discount percent, z-score, deal status (null if unavailable)")
     feature_contributions: dict = Field(
         default_factory=dict,
         description="Contribution of each feature to the valuation"
     )
-    metadata: dict = Field(..., description="Model version and computation timestamp")
+    metadata: dict = Field(..., description="Model version, computation timestamp, and availability status")
 
     class Config:
         json_schema_extra = {
@@ -185,14 +185,27 @@ async def get_valuation(
     service = HedonicValuationService(db)
     result = await service.valuate(axie_id, include_market_context=True)
 
+    # Return graceful response for unavailable valuations (no 404)
     if result.confidence_score == 0.0 and result.hedonic_value_eth is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Axie {axie_id} not found or insufficient data for valuation"
-        )
+        return {
+            "axie_id": axie_id,
+            "valuation": None,
+            "market_context": None,
+            "deal_analysis": None,
+            "feature_contributions": {},
+            "metadata": {
+                "method": None,
+                "model_version": None,
+                "computed_at": None,
+                "available": False,
+                "reason": "Axie not found in database or insufficient data for valuation"
+            }
+        }
 
     # Convert to response format
     response_data = result.to_dict()
+    # Mark as available
+    response_data["metadata"]["available"] = True
 
     # Cache the result
     if cache.is_connected:
