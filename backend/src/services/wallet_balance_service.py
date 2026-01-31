@@ -391,7 +391,7 @@ class WalletBalanceService:
 # Dependency injection helper
 async def get_wallet_balance_service(
     db: AsyncSession,
-) -> WalletBalanceService:
+):
     """
     Get WalletBalanceService instance with dependencies.
 
@@ -403,10 +403,16 @@ async def get_wallet_balance_service(
     cache = await get_cache_manager()
     rpc_client = RoninRPCClient()  # Uses default public RPC
 
-    async with rpc_client:
+    # Enter context manager to initialize client
+    await rpc_client.__aenter__()
+
+    try:
         service = WalletBalanceService(
             db=db,
             rpc_client=rpc_client,
             cache=cache,
         )
         yield service
+    finally:
+        # Cleanup RPC client after request
+        await rpc_client.__aexit__(None, None, None)
