@@ -61,8 +61,11 @@ async def search_axies(
     Returns paginated results with optional filters for class, purity,
     breed count, parts, and price range.
     """
-    # Build base query
-    query = select(Axie)
+    # Build base query with eager loading to prevent N+1 queries
+    query = select(Axie).options(
+        selectinload(Axie.parts).selectinload(AxiePart.part),
+        selectinload(Axie.listings),
+    )
 
     # Apply class filter
     if class_:
@@ -162,8 +165,10 @@ async def get_axie(
     Returns complete Axie data including genes, parts, stats,
     and optionally listing and sales history.
     """
-    # Try to get from database first
-    query = select(Axie).where(Axie.id == axie_id)
+    # Try to get from database first - eager load relationships to prevent N+1 queries
+    query = select(Axie).where(Axie.id == axie_id).options(
+        selectinload(Axie.parts).selectinload(AxiePart.part),
+    )
 
     if include_listing:
         query = query.options(selectinload(Axie.listings))

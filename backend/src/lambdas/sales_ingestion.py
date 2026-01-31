@@ -26,6 +26,9 @@ from src.lambdas.common import (
 # Import Ronin RPC client
 from src.services.ronin_rpc_client import RoninRPCClient, Sale, RoninRPCError
 
+# Import schema validation
+from src.lambdas.common.schema_validation import validate_sales_record
+
 
 # Configuration
 BLOCKS_PER_30_MIN = 900  # ~2 sec block time = 900 blocks in 30 min
@@ -58,14 +61,14 @@ def get_last_processed_block(conn) -> Optional[int]:
     # Fall back to checking if we have any sales data
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT MAX(sold_at) FROM sales")
+            cur.execute("SELECT MAX(block_timestamp) FROM axie_sales")
             result = cur.fetchone()
             if result and result[0]:
                 # We have sales but no block tracking - use time-based lookback
                 logger.info("No block metadata found, will use time-based lookback")
                 return None
     except Exception as e:
-        logger.debug(f"Could not check sales table: {e}")
+        logger.debug(f"Could not check axie_sales table: {e}")
         conn.rollback()
 
     return None
@@ -98,26 +101,83 @@ def save_last_processed_block(conn, block_number: int):
 
 
 @tracer.capture_method
-def convert_sale_to_record(sale: Sale) -> Dict[str, Any]:
-    """Convert RPC Sale object to database record format."""
-    # Convert token price to ETH equivalent for consistency
-    # WETH is already in ETH units, WRON needs conversion
-    if sale.token_type == "WETH":
-        price_eth = Decimal(str(sale.price_token))
-    else:
-        # WRON price - store as-is, price_usd is the reference
-        price_eth = Decimal(str(sale.price_token))
+def get_exchange_rates(conn) -> Dict[str, Decimal]:
+    """
+    Get current exchange rates for ETH and RON.
 
+    Tries to fetch from exchange_rates table, falls back to safe defaults.
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT eth_usd, ron_usd
+                FROM exchange_rates
+                ORDER BY recorded_at DESC
+                LIMIT 1
+                """
+            )
+            result = cur.fetchone()
+            if result and result[0] and result[1]:
+                return {
+                    "eth_usd": Decimal(str(result[0])),
+                    "ron_usd": Decimal(str(result[1])),
+                }
+    except Exception as e:
+        logger.debug(f"Could not fetch exchange rates from DB: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+    # Fallback to safe defaults (conservative estimates)
     return {
+        "eth_usd": Decimal("3800.00"),
+        "ron_usd": Decimal("0.15"),
+    }
+
+
+@tracer.capture_method
+def convert_sale_to_record(
+    sale: Sale,
+    eth_usd_rate: Optional[Decimal] = None,
+    ron_usd_rate: Optional[Decimal] = None,
+) -> Dict[str, Any]:
+    """
+    Convert RPC Sale object to axie_sales table record.
+
+    Args:
+        sale: Sale from RoninRPCClient
+        eth_usd_rate: ETH/USD exchange rate at ingestion time
+        ron_usd_rate: RON/USD exchange rate at ingestion time
+
+    Returns:
+        Dict matching axie_sales schema columns
+    """
+    return {
+        # Core identifiers (required)
         "axie_id": sale.axie_id,
-        "seller_address": sale.seller.lower() if sale.seller else None,
-        "buyer_address": sale.buyer.lower() if sale.buyer else None,
-        "price_eth": price_eth,
-        "price_usd": Decimal(str(sale.price_usd)) if sale.price_usd else None,
         "tx_hash": sale.tx_hash,
-        "sold_at": sale.block_timestamp or datetime.now(timezone.utc),
-        "marketplace": "official",
-        "token_type": sale.token_type,  # New field to track payment token
+        "block_number": sale.block_number,
+        "block_timestamp": sale.block_timestamp or datetime.now(timezone.utc),
+
+        # Price data (required)
+        "price_token": Decimal(str(sale.price_token)),
+        "token_type": sale.token_type,
+        "price_usd": Decimal(str(sale.price_usd)) if sale.price_usd else None,
+
+        # Exchange rates (optional, for analytics)
+        "eth_usd_rate": eth_usd_rate,
+        "ron_usd_rate": ron_usd_rate,
+
+        # Parties (optional)
+        "seller": sale.seller.lower() if sale.seller else None,
+        "buyer": sale.buyer.lower() if sale.buyer else None,
+
+        # Denormalized fields (optional, NULL for now, backfill later)
+        "class": None,
+        "breed_count": None,
+        "price_raw": None,
     }
 
 
@@ -139,26 +199,38 @@ def store_sales(conn, sales: List[Dict[str, Any]]) -> int:
     with conn.cursor() as cur:
         for i, sale in enumerate(sales):
             try:
+                # Validate record against schema before insertion
+                validate_sales_record(sale)
+
                 # Use savepoint to allow recovery from FK violations
                 cur.execute(f"SAVEPOINT sale_{i}")
                 cur.execute(
                     """
-                    INSERT INTO sales (
-                        axie_id, seller_address, buyer_address,
-                        price_eth, price_usd, tx_hash, sold_at, marketplace
+                    INSERT INTO axie_sales (
+                        axie_id, tx_hash, block_number, block_timestamp,
+                        price_token, token_type, price_usd,
+                        eth_usd_rate, ron_usd_rate,
+                        seller, buyer,
+                        class, breed_count, price_raw
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (tx_hash) DO NOTHING
                     """,
                     (
                         sale["axie_id"],
-                        sale["seller_address"],
-                        sale["buyer_address"],
-                        sale["price_eth"],
-                        sale["price_usd"],
                         sale["tx_hash"],
-                        sale["sold_at"],
-                        sale["marketplace"],
+                        sale["block_number"],
+                        sale["block_timestamp"],
+                        sale["price_token"],
+                        sale["token_type"],
+                        sale["price_usd"],
+                        sale["eth_usd_rate"],
+                        sale["ron_usd_rate"],
+                        sale["seller"],
+                        sale["buyer"],
+                        sale["class"],
+                        sale["breed_count"],
+                        sale["price_raw"],
                     ),
                 )
                 if cur.rowcount > 0:
@@ -295,8 +367,19 @@ def handler(event, context):
                     # Fetch block timestamps
                     sales = await fetch_block_timestamps(rpc_client, sales)
 
+                    # Get current exchange rates
+                    rates = get_exchange_rates(conn)
+                    logger.info(f"Using exchange rates: ETH/USD={rates['eth_usd']}, RON/USD={rates['ron_usd']}")
+
                     # Convert to database format
-                    records = [convert_sale_to_record(s) for s in sales]
+                    records = [
+                        convert_sale_to_record(
+                            s,
+                            eth_usd_rate=rates["eth_usd"],
+                            ron_usd_rate=rates["ron_usd"],
+                        )
+                        for s in sales
+                    ]
 
                     # Store in database
                     total_inserted = store_sales(conn, records)
