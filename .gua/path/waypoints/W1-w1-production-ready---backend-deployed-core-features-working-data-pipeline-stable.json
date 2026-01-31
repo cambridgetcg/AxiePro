@@ -1,0 +1,12 @@
+{
+  "id": "W1",
+  "name": "W1: Production Ready - Backend deployed, core features working, data pipeline stable",
+  "predecessor": "CURRENT_STATE",
+  "successor": null,
+  "status": "pending",
+  "impl": 0,
+  "depth": "L0",
+  "createdAt": "2026-01-30T16:31:47Z",
+  "updatedAt": "2026-01-30T16:31:47Z",
+  "validatedAt": null
+}
