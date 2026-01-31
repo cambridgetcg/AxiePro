@@ -6,6 +6,11 @@ Provides access to:
 - Marketplace listings and sales
 - Breeding data
 - Battle statistics
+
+Includes resilience patterns:
+- Token bucket rate limiting (10 req/min)
+- Circuit breaker (5 failures → 60s cooldown)
+- Exponential backoff retry (tenacity)
 """
 
 import asyncio
@@ -16,9 +21,23 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 import httpx
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+    RetryError,
+)
 
 from src.config import get_settings
 from src.utils.gene_parser import GeneParser, AxieGenes
+from src.services.rate_limiter import get_skymavis_rate_limiter, TokenBucketRateLimiter
+from src.services.circuit_breaker import (
+    get_skymavis_circuit_breaker,
+    CircuitBreaker,
+    CircuitOpenError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -200,26 +219,44 @@ class SkyMavisClient:
     """
     Async GraphQL client for Sky Mavis APIs.
 
+    Features resilience patterns to handle rate limiting:
+    - Token bucket rate limiter (10 req/min sustained, burst of 3)
+    - Circuit breaker (opens after 5 failures, 60s recovery)
+    - Exponential backoff retry (3 attempts, 4-60s wait)
+
     Usage:
         async with SkyMavisClient() as client:
             axie = await client.get_axie(12345)
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        rate_limiter: Optional[TokenBucketRateLimiter] = None,
+        circuit_breaker: Optional[CircuitBreaker] = None,
+    ):
         """
         Initialize Sky Mavis client.
 
         Args:
             api_key: Sky Mavis API key. If not provided, uses settings.
+            rate_limiter: Custom rate limiter (defaults to global)
+            circuit_breaker: Custom circuit breaker (defaults to global)
         """
         settings = get_settings()
         self.api_key = api_key or settings.skymavis_api_key
         self.graphql_url = settings.skymavis_graphql_url
         self.marketplace_url = settings.skymavis_marketplace_url
-        self.rate_limit = settings.skymavis_rate_limit
         self._client: Optional[httpx.AsyncClient] = None
+
+        # Resilience components
+        self._rate_limiter = rate_limiter or get_skymavis_rate_limiter()
+        self._circuit_breaker = circuit_breaker or get_skymavis_circuit_breaker()
+
+        # Stats tracking
         self._request_count = 0
-        self._last_reset = datetime.now()
+        self._success_count = 0
+        self._failure_count = 0
 
     async def __aenter__(self) -> "SkyMavisClient":
         """Async context manager entry."""
@@ -249,7 +286,12 @@ class SkyMavisClient:
         use_marketplace: bool = False,
     ) -> dict[str, Any]:
         """
-        Execute a GraphQL query.
+        Execute a GraphQL query with resilience patterns.
+
+        Uses:
+        - Circuit breaker to fail fast when API is down
+        - Rate limiter to prevent 429 errors
+        - Exponential backoff retry for transient failures
 
         Args:
             query: GraphQL query string
@@ -258,12 +300,71 @@ class SkyMavisClient:
 
         Returns:
             Query response data
+
+        Raises:
+            CircuitOpenError: If circuit breaker is open
+            SkyMavisAPIError: If API returns error after retries
         """
         if not self._client:
             raise RuntimeError("Client not initialized. Use async context manager.")
 
-        await self._check_rate_limit()
+        # Check circuit breaker first
+        if not await self._circuit_breaker.can_execute():
+            recovery_time = self._circuit_breaker.time_until_recovery()
+            logger.warning(
+                f"Circuit breaker open, rejecting request. "
+                f"Recovery in {recovery_time:.1f}s"
+            )
+            raise CircuitOpenError(
+                f"SkyMavis API circuit breaker is open. Recovery in {recovery_time:.1f}s",
+                recovery_time=recovery_time,
+            )
 
+        # Acquire rate limit token
+        if not await self._rate_limiter.acquire(timeout=120.0):
+            raise SkyMavisAPIError("Rate limiter timeout - too many requests queued")
+
+        self._request_count += 1
+
+        try:
+            result = await self._execute_with_retry(query, variables, use_marketplace)
+            await self._circuit_breaker.record_success()
+            self._success_count += 1
+            return result
+        except Exception as e:
+            await self._circuit_breaker.record_failure(e)
+            self._failure_count += 1
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=4, max=60),
+        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
+    async def _execute_with_retry(
+        self,
+        query: str,
+        variables: Optional[dict],
+        use_marketplace: bool,
+    ) -> dict[str, Any]:
+        """
+        Execute GraphQL request with exponential backoff retry.
+
+        Retries on:
+        - Timeout errors
+        - Connection errors
+        - 429 rate limit errors (with Retry-After header)
+
+        Args:
+            query: GraphQL query string
+            variables: Query variables
+            use_marketplace: Use marketplace endpoint
+
+        Returns:
+            Query response data
+        """
         url = self.marketplace_url if use_marketplace else self.graphql_url
 
         payload = {"query": query}
@@ -273,13 +374,26 @@ class SkyMavisClient:
         try:
             response = await self._client.post(url, json=payload)
 
+            # Handle rate limiting with retry
             if response.status_code == 429:
-                retry_after = int(response.headers.get("Retry-After", 60))
-                logger.warning(f"Rate limited, waiting {retry_after}s")
+                retry_after = int(response.headers.get("Retry-After", 30))
+                logger.warning(
+                    f"SkyMavis API rate limited (429), waiting {retry_after}s"
+                )
                 await asyncio.sleep(retry_after)
-                return await self._graphql_request(query, variables, use_marketplace)
+                # Raise to trigger retry
+                raise httpx.TimeoutException(
+                    f"Rate limited, retry after {retry_after}s"
+                )
+
+            if response.status_code >= 500:
+                # Server error - might be transient, raise to trigger retry
+                raise httpx.ConnectError(
+                    f"Server error {response.status_code}: {response.text[:200]}"
+                )
 
             if response.status_code >= 400:
+                # Client error - don't retry
                 raise SkyMavisAPIError(
                     f"HTTP {response.status_code}: {response.text}"
                 )
@@ -294,26 +408,17 @@ class SkyMavisClient:
 
         except httpx.RequestError as e:
             logger.error(f"Request error: {e}")
-            raise SkyMavisAPIError(str(e))
+            raise
 
-    async def _check_rate_limit(self):
-        """Check and enforce rate limiting."""
-        now = datetime.now()
-        elapsed = (now - self._last_reset).total_seconds()
-
-        if elapsed >= 60:
-            self._request_count = 0
-            self._last_reset = now
-
-        if self._request_count >= self.rate_limit:
-            wait_time = 60 - elapsed
-            if wait_time > 0:
-                logger.info(f"Rate limit reached, waiting {wait_time:.1f}s")
-                await asyncio.sleep(wait_time)
-                self._request_count = 0
-                self._last_reset = datetime.now()
-
-        self._request_count += 1
+    def get_stats(self) -> dict:
+        """Get client statistics."""
+        return {
+            "requests": self._request_count,
+            "successes": self._success_count,
+            "failures": self._failure_count,
+            "circuit_breaker": self._circuit_breaker.get_stats(),
+            "rate_limiter_tokens": self._rate_limiter.available_tokens,
+        }
 
     # =========================================================================
     # Axie Queries

@@ -14,7 +14,7 @@ rm -rf python/
 mkdir -p python/
 
 # Install dependencies
-pip install -r requirements.txt -t python/ --platform manylinux2014_x86_64 --only-binary=:all:
+python3 -m pip install -r requirements.txt -t python/ --platform manylinux2014_x86_64 --only-binary=:all:
 
 # Clean up unnecessary files
 find python/ -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

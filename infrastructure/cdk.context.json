@@ -6,5 +6,6 @@
     "us-east-1d",
     "us-east-1e",
     "us-east-1f"
-  ]
+  ],
+  "ssm:account=034362054546:parameterName=/axiepro/dev/app/cors_origins:region=us-east-1": "https://axiepro.io,http://localhost:3000,http://127.0.0.1:3000"
 }

@@ -1,0 +1,515 @@
+{
+  "logs": [],
+  "errors": [],
+  "warnings": [],
+  "networkRequests": [
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/market",
+      "timestamp": "2026-01-29T17:37:00.442Z",
+      "status": 308,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/market/",
+      "timestamp": "2026-01-29T17:37:00.528Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/media/797e433ab948586e-s.p.dbea232f.woff2",
+      "timestamp": "2026-01-29T17:37:00.566Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/media/caa3a2e1cccd8315-s.p.853070df.woff2",
+      "timestamp": "2026-01-29T17:37:00.566Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/9b8dab7f66575fe8.css?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.566Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/9813e41d70efeb1e.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/93febd09fdd40a33.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/e8ec776b86e3a786.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/023d923a37d494fc.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/turbopack-119426d1c3ce9d8a.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/1687ba4f242e87f0.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/c13db1e37d6d8f40.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/a14a30934d180b36.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/fcad3a2eeedd9bcd.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/c48a303e050f84c5.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/ff1a16fafef87110.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/5ba5c7ff239ea533.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/ac360a447d55a9ca.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.569Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/logo-simple.svg",
+      "timestamp": "2026-01-29T17:37:00.683Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://api.axiepro.io/api/v1/valuation/stats/floors",
+      "timestamp": "2026-01-29T17:37:00.740Z",
+      "status": 200,
+      "statusText": "OK"
+    },
+    {
+      "method": "GET",
+      "url": "https://api.axiepro.io/api/v1/valuation/deals/snipes?limit=5&include_normalized=true",
+      "timestamp": "2026-01-29T17:37:00.743Z",
+      "status": 200,
+      "statusText": "OK"
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/deals/?_rsc=umnn7",
+      "timestamp": "2026-01-29T17:37:00.748Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/analytics/?_rsc=umnn7",
+      "timestamp": "2026-01-29T17:37:00.748Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/breeding/?_rsc=umnn7",
+      "timestamp": "2026-01-29T17:37:00.748Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/portfolio/?_rsc=umnn7",
+      "timestamp": "2026-01-29T17:37:00.748Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/meta/?_rsc=umnn7",
+      "timestamp": "2026-01-29T17:37:00.778Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/explorer/?_rsc=umnn7",
+      "timestamp": "2026-01-29T17:37:00.778Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/?_rsc=umnn7",
+      "timestamp": "2026-01-29T17:37:00.780Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/deals/?_rsc=nyww9",
+      "timestamp": "2026-01-29T17:37:00.781Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/deals/?_rsc=1fkw2",
+      "timestamp": "2026-01-29T17:37:00.781Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/deals/?_rsc=106vt",
+      "timestamp": "2026-01-29T17:37:00.801Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/deals/?_rsc=loi9y",
+      "timestamp": "2026-01-29T17:37:00.806Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/analytics/?_rsc=nyww9",
+      "timestamp": "2026-01-29T17:37:00.814Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/analytics/?_rsc=yphlm",
+      "timestamp": "2026-01-29T17:37:00.833Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/analytics/?_rsc=1vccn",
+      "timestamp": "2026-01-29T17:37:00.840Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/f1e32aa97aa12381.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.843Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/breeding/?_rsc=nyww9",
+      "timestamp": "2026-01-29T17:37:00.843Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/breeding/?_rsc=1s50l",
+      "timestamp": "2026-01-29T17:37:00.872Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/breeding/?_rsc=1pv6n",
+      "timestamp": "2026-01-29T17:37:00.872Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/portfolio/?_rsc=nyww9",
+      "timestamp": "2026-01-29T17:37:00.872Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/4493f36cdc663277.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.882Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/e508665dcbc1bbc1.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.882Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/9e05a6312bf70b55.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.882Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/portfolio/?_rsc=18xc3",
+      "timestamp": "2026-01-29T17:37:00.882Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/portfolio/?_rsc=1x0fb",
+      "timestamp": "2026-01-29T17:37:00.894Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/meta/?_rsc=nyww9",
+      "timestamp": "2026-01-29T17:37:00.899Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/meta/?_rsc=e7fga",
+      "timestamp": "2026-01-29T17:37:00.932Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/meta/?_rsc=1ngq9",
+      "timestamp": "2026-01-29T17:37:00.932Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/explorer/?_rsc=nyww9",
+      "timestamp": "2026-01-29T17:37:00.937Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/edcc594ecd62e43d.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.938Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/540ef97252b66149.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.938Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/explorer/?_rsc=xdkxa",
+      "timestamp": "2026-01-29T17:37:00.938Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/explorer/?_rsc=1lrui",
+      "timestamp": "2026-01-29T17:37:00.984Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/872da6d29f7ac355.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:00.996Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/?_rsc=nyww9",
+      "timestamp": "2026-01-29T17:37:00.996Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/?_rsc=oabi9",
+      "timestamp": "2026-01-29T17:37:00.996Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/d2c2c5a260d57b89.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:01.008Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/b52ec1f337ba883c.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:01.039Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/16ee56925098f870.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:01.039Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/_next/static/chunks/d4103893cf4b7e7b.js?dpl=dpl_4Nwb7Z76ib87cmk1ojKHmQYdXoV7",
+      "timestamp": "2026-01-29T17:37:01.039Z",
+      "status": 200,
+      "statusText": ""
+    }
+  ],
+  "networkErrors": [],
+  "apiCalls": [
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/market/",
+      "timestamp": "2026-01-29T17:37:00.528Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://api.axiepro.io/api/v1/valuation/stats/floors",
+      "timestamp": "2026-01-29T17:37:00.740Z",
+      "status": 200,
+      "statusText": "OK"
+    },
+    {
+      "method": "GET",
+      "url": "https://api.axiepro.io/api/v1/valuation/deals/snipes?limit=5&include_normalized=true",
+      "timestamp": "2026-01-29T17:37:00.743Z",
+      "status": 200,
+      "statusText": "OK"
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/breeding/?_rsc=umnn7",
+      "timestamp": "2026-01-29T17:37:00.748Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/meta/?_rsc=umnn7",
+      "timestamp": "2026-01-29T17:37:00.778Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/breeding/?_rsc=nyww9",
+      "timestamp": "2026-01-29T17:37:00.843Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/breeding/?_rsc=1s50l",
+      "timestamp": "2026-01-29T17:37:00.872Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/breeding/?_rsc=1pv6n",
+      "timestamp": "2026-01-29T17:37:00.872Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/meta/?_rsc=nyww9",
+      "timestamp": "2026-01-29T17:37:00.899Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/meta/?_rsc=e7fga",
+      "timestamp": "2026-01-29T17:37:00.932Z",
+      "status": 200,
+      "statusText": ""
+    },
+    {
+      "method": "GET",
+      "url": "https://app.axiepro.io/meta/?_rsc=1ngq9",
+      "timestamp": "2026-01-29T17:37:00.932Z",
+      "status": 200,
+      "statusText": ""
+    }
+  ],
+  "pageErrors": [],
+  "summary": {
+    "totalLogs": 0,
+    "errorCount": 0,
+    "warningCount": 0,
+    "apiCallCount": 11,
+    "pageErrorCount": 0
+  }
+}
