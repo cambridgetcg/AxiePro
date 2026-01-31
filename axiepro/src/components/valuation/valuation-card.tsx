@@ -16,6 +16,7 @@ import { DealIndicator } from './deal-indicator';
 import { ValuationBadge } from './valuation-badge';
 import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import type { ValuationResponse } from '@/types/valuation';
 
 interface ValuationCardProps {
@@ -45,6 +46,24 @@ export function ValuationCard({
   const [showBreakdown, setShowBreakdown] = useState(showFeatureBreakdown);
 
   const { deal_analysis, market_context } = valuation;
+
+  // Handle unavailable valuation
+  if (!valuation.valuation || !deal_analysis || !market_context) {
+    return (
+      <Card className={cn('w-full', className)}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xl">Axie #{valuation.axie_id}</CardTitle>
+        </CardHeader>
+        <CardContent className="py-6 text-center">
+          <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            {valuation.metadata?.reason || 'Valuation data unavailable'}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const fairValue = valuation.valuation.ensemble_eth ?? valuation.valuation.hedonic_eth;
 
   // Sort feature contributions by absolute value
@@ -184,8 +203,10 @@ export function ValuationCard({
         {/* Metadata */}
         <div className="pt-2 border-t">
           <p className="text-xs text-muted-foreground">
-            Model: {valuation.metadata.model_version} |{' '}
-            {new Date(valuation.metadata.computed_at).toLocaleString()}
+            Model: {valuation.metadata.model_version || 'N/A'}
+            {valuation.metadata.computed_at && (
+              <> | {new Date(valuation.metadata.computed_at).toLocaleString()}</>
+            )}
           </p>
         </div>
       </CardContent>
