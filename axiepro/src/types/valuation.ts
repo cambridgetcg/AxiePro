@@ -70,19 +70,25 @@ export interface DealAnalysis {
  * Valuation metadata.
  */
 export interface ValuationMetadata {
-  method: 'hedonic' | 'ensemble' | 'ml';
-  model_version: string;
-  computed_at: string; // ISO timestamp
+  method: 'hedonic' | 'ensemble' | 'ml' | null;
+  model_version: string | null;
+  computed_at: string | null; // ISO timestamp
+  available: boolean; // true if valuation was computed successfully
+  reason?: string; // explanation when unavailable
 }
 
 /**
  * Full valuation response from GET /valuation/{axie_id}
+ *
+ * Note: valuation, market_context, and deal_analysis can be null
+ * when the Axie is not found or cannot be valued. Check metadata.available
+ * to determine if the valuation is valid.
  */
 export interface ValuationResponse {
   axie_id: number;
-  valuation: Valuation;
-  market_context: MarketContext;
-  deal_analysis: DealAnalysis;
+  valuation: Valuation | null;
+  market_context: MarketContext | null;
+  deal_analysis: DealAnalysis | null;
   feature_contributions: Record<string, number>;
   metadata: ValuationMetadata;
 }
