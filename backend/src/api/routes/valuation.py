@@ -183,7 +183,24 @@ async def get_valuation(
 
     # Compute valuation
     service = HedonicValuationService(db)
-    result = await service.valuate(axie_id, include_market_context=True)
+    try:
+        result = await service.valuate(axie_id, include_market_context=True)
+    except Exception as e:
+        logger.error(f"Valuation service error for axie {axie_id}: {e}")
+        return {
+            "axie_id": axie_id,
+            "valuation": None,
+            "market_context": None,
+            "deal_analysis": None,
+            "feature_contributions": {},
+            "metadata": {
+                "method": None,
+                "model_version": None,
+                "computed_at": None,
+                "available": False,
+                "reason": "Valuation service temporarily unavailable"
+            }
+        }
 
     # Return graceful response for unavailable valuations (no 404)
     if result.confidence_score == 0.0 and result.hedonic_value_eth is None:
