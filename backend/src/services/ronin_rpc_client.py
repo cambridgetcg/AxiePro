@@ -117,9 +117,15 @@ class RoninRPCClient:
     AXIE_CONTRACT = "0x32950db2a7164ae833121501c797d79e7b79d74c"
     WETH_CONTRACT = "0xc99a6a985ed2cac1ef41640596c5a5f9f4e19ef5"
     WRON_CONTRACT = "0xe514d9deb7966c8be0ca922de8a064264ea6bcd4"
+    AXS_CONTRACT = "0x97a9107c1793bc407d6f527b77e7fff4d812bece"
+    SLP_CONTRACT = "0xa8754b9fa15fc18bb59458815510e40a12cd2014"
+    RON_NATIVE = "NATIVE"  # RON is native token, no contract address
 
     # Event signatures
     TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+
+    # ERC20 function signatures
+    BALANCE_OF_SIGNATURE = "0x70a08231"  # balanceOf(address)
 
     # Price rates (can be updated dynamically)
     RATES = {"WETH": 3800.0, "WRON": 0.15}
@@ -615,6 +621,129 @@ class RoninRPCClient:
             sales.extend(parsed)
 
         return sales
+
+    # =========================================================================
+    # Balance Methods (ERC20 + Native)
+    # =========================================================================
+
+    async def get_native_balance(self, address: str) -> Decimal:
+        """
+        Get native RON balance for an address.
+
+        Args:
+            address: Wallet address (0x... or ronin:...)
+
+        Returns:
+            Balance in RON (e.g., Decimal("123.456"))
+        """
+        # Normalize address format (ronin:xxx or 0x...)
+        if address.startswith("ronin:"):
+            address = "0x" + address[6:]
+
+        result = await self._call("eth_getBalance", [address, "latest"])
+
+        # Convert wei to RON
+        balance_wei = int(result, 16)
+        balance_ron = Decimal(balance_wei) / Decimal(10**18)
+
+        return balance_ron
+
+    async def get_erc20_balance(
+        self,
+        token_address: str,
+        wallet_address: str,
+    ) -> Decimal:
+        """
+        Get ERC20 token balance using eth_call.
+
+        Args:
+            token_address: Token contract address (0x...)
+            wallet_address: Wallet address (0x... or ronin:...)
+
+        Returns:
+            Balance in token units (e.g., Decimal("0.05") for 0.05 WETH)
+
+        Note:
+            Uses balanceOf(address) function call via eth_call.
+        """
+        # Normalize addresses
+        if wallet_address.startswith("ronin:"):
+            wallet_address = "0x" + wallet_address[6:]
+        if token_address.startswith("ronin:"):
+            token_address = "0x" + token_address[6:]
+
+        # Encode balanceOf(address) call
+        # balanceOf signature: 0x70a08231
+        # Padded address parameter (32 bytes)
+        padded_address = wallet_address[2:].lower().zfill(64)
+        data = f"{self.BALANCE_OF_SIGNATURE}{padded_address}"
+
+        # eth_call parameters
+        call_params = {
+            "to": token_address,
+            "data": data,
+        }
+
+        result = await self._call("eth_call", [call_params, "latest"])
+
+        # Parse uint256 result
+        if not result or result == "0x":
+            return Decimal(0)
+
+        balance_raw = int(result, 16)
+        balance_tokens = Decimal(balance_raw) / Decimal(10**18)
+
+        return balance_tokens
+
+    async def get_wallet_balances(
+        self,
+        wallet_address: str,
+        token_contracts: Optional[dict[str, str]] = None,
+    ) -> dict[str, Decimal]:
+        """
+        Get all token balances for a wallet in a single batch.
+
+        Args:
+            wallet_address: Wallet address (0x... or ronin:...)
+            token_contracts: Optional custom token mapping
+                           Default: {RON, WETH, WRON, AXS, SLP}
+
+        Returns:
+            Dict mapping token name to balance
+            Example: {"RON": Decimal("123.456"), "WETH": Decimal("0.05"), ...}
+        """
+        if token_contracts is None:
+            token_contracts = {
+                "RON": self.RON_NATIVE,
+                "WETH": self.WETH_CONTRACT,
+                "WRON": self.WRON_CONTRACT,
+                "AXS": self.AXS_CONTRACT,
+                "SLP": self.SLP_CONTRACT,
+            }
+
+        balances = {}
+
+        # Fetch all balances in parallel
+        tasks = []
+        token_names = []
+
+        for token_name, contract_address in token_contracts.items():
+            if contract_address == self.RON_NATIVE:
+                tasks.append(self.get_native_balance(wallet_address))
+            else:
+                tasks.append(self.get_erc20_balance(contract_address, wallet_address))
+            token_names.append(token_name)
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for token_name, result in zip(token_names, results):
+            if isinstance(result, Exception):
+                logger.warning(f"Failed to fetch {token_name} balance: {result}")
+                balances[token_name] = Decimal(0)
+            else:
+                balances[token_name] = result
+
+        return balances
 
     # =========================================================================
     # Utility Methods

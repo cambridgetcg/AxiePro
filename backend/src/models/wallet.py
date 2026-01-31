@@ -4,12 +4,14 @@ SQLAlchemy models for wallet tracking.
 
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum as PyEnum
 from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Enum,
     ForeignKey,
     Index,
     Integer,
@@ -54,6 +56,11 @@ class Wallet(Base):
     # Relationships
     holdings: Mapped[list["WalletHolding"]] = relationship(
         "WalletHolding",
+        back_populates="wallet",
+        cascade="all, delete-orphan",
+    )
+    token_balances: Mapped[list["WalletTokenBalance"]] = relationship(
+        "WalletTokenBalance",
         back_populates="wallet",
         cascade="all, delete-orphan",
     )
@@ -136,3 +143,92 @@ class WalletHolding(Base):
         else:
             self.unrealized_pnl_eth = None
             self.unrealized_pnl_percent = None
+
+
+class TokenType(str, PyEnum):
+    """Supported token types on Ronin chain."""
+
+    RON = "RON"  # Native Ronin token
+    WETH = "WETH"  # Wrapped ETH (Axie marketplace currency)
+    WRON = "WRON"  # Wrapped RON
+    AXS = "AXS"  # Axie Infinity Shards (governance)
+    SLP = "SLP"  # Smooth Love Potion (breeding)
+
+
+class WalletTokenBalance(Base):
+    """
+    Current token balances for tracked wallets.
+
+    Caches balances fetched from Ronin RPC to avoid repeated blockchain calls.
+    Updated on-demand when wallet endpoints are accessed or via background sync.
+    """
+
+    __tablename__ = "wallet_token_balances"
+    __table_args__ = {"schema": "axie"}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wallet_address: Mapped[str] = mapped_column(
+        String(42),
+        ForeignKey("axie.wallets.address", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_type: Mapped[TokenType] = mapped_column(
+        Enum(TokenType),
+        nullable=False,
+    )
+
+    # Balance data
+    balance: Mapped[Decimal] = mapped_column(
+        Numeric(20, 8),
+        nullable=False,
+        comment="Token balance in native units (e.g., 1.5 WETH)",
+    )
+    balance_usd: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(20, 2),
+        comment="USD value at last update",
+    )
+    token_price_usd: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(20, 8),
+        comment="Token price in USD at last update",
+    )
+
+    # Metadata
+    last_updated: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        comment="When balance was last fetched",
+    )
+    block_number: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        comment="Block number at last update (for debugging)",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    # Relationships
+    wallet: Mapped["Wallet"] = relationship("Wallet", back_populates="token_balances")
+
+    @property
+    def is_stale(self, ttl_minutes: int = 5) -> bool:
+        """Check if balance data is stale (older than TTL)."""
+        if not self.last_updated:
+            return True
+        age_seconds = (datetime.utcnow() - self.last_updated).total_seconds()
+        return age_seconds > (ttl_minutes * 60)
+
+    def to_dict(self) -> dict:
+        """Convert to API response format."""
+        return {
+            "token": self.token_type.value,
+            "balance": float(self.balance),
+            "balance_usd": float(self.balance_usd) if self.balance_usd else None,
+            "token_price_usd": (
+                float(self.token_price_usd) if self.token_price_usd else None
+            ),
+            "last_updated": self.last_updated.isoformat(),
+        }
