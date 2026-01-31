@@ -53,4 +53,4 @@ EXPOSE 8000
 #     CMD python -c "import httpx; httpx.get('http://localhost:8000/health')" || exit 1
 
 # Run application with startup logging
-CMD ["sh", "-c", "echo '=== Starting AxiePro API ===' && echo 'Python version:' && python --version && echo 'Checking imports...' && python -c 'print(\"Testing basic import...\"); from src.main import app; print(\"App imported successfully!\")' && echo 'Starting uvicorn...' && exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --log-level info"]
+CMD ["sh", "-c", "echo '=== Starting AxiePro API ===' && echo 'Python version:' && python --version && echo 'Checking imports...' && python -c 'print(\"Testing basic import...\"); from src.main import app; print(\"App imported successfully!\")' && echo 'Starting uvicorn...' && exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --log-level warning --no-access-log"]

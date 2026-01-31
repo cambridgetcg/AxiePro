@@ -98,7 +98,10 @@ def setup_logging(level: Optional[str] = None) -> None:
     root_logger.addHandler(console_handler)
 
     # Suppress noisy third-party loggers
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    # Only log errors for access logs (no 200 OK spam)
+    logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.ERROR)
+    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
