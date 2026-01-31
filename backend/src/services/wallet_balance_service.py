@@ -18,8 +18,10 @@ from dataclasses import dataclass
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
 
 from src.models.wallet import Wallet, WalletTokenBalance, TokenType
+from src.models.database import get_db
 from src.services.ronin_rpc_client import RoninRPCClient
 from src.services.cache import RedisCacheManager
 
@@ -390,7 +392,7 @@ class WalletBalanceService:
 
 # Dependency injection helper
 async def get_wallet_balance_service(
-    db: AsyncSession,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get WalletBalanceService instance with dependencies.
