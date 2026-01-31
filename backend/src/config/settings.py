@@ -62,9 +62,13 @@ class Settings(BaseSettings):
     environment: str = "development"  # development, staging, production
 
     # CORS - comma-separated list of allowed origins
-    # In production, set to your frontend domain(s)
-    # Default includes production domains for safety
-    cors_origins: str = "https://axiepro.io,https://www.axiepro.io,https://app.axiepro.io,http://localhost:3000"
+    # IMPORTANT: Update this via CORS_ORIGINS environment variable in deployment
+    # to include your actual frontend URLs:
+    #   - Custom domains (axiepro.io, www.axiepro.io, app.axiepro.io)
+    #   - App Runner URL (e.g., https://xxx.us-east-1.awsapprunner.com)
+    #   - Vercel URL (e.g., https://axiepro.vercel.app)
+    # Default includes localhost for development only
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # Database
     database_url: str = "postgresql://axie:axie_dev_password@localhost:5432/axie_explorer"
@@ -179,6 +183,44 @@ class Settings(BaseSettings):
     def moralis_base_url(self) -> str:
         """Moralis API base URL."""
         return "https://deep-index.moralis.io/api/v2.2"
+
+    def get_cors_origins_list(self) -> list[str]:
+        """
+        Get CORS origins as a validated list.
+
+        Validates origins and logs warnings for production misconfigurations:
+        - Wildcard (*) in production
+        - Localhost origins in production
+
+        Returns:
+            List of allowed CORS origins
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Handle wildcard
+        if self.cors_origins == "*":
+            if self.environment == "production":
+                logger.warning(
+                    "SECURITY WARNING: CORS wildcard (*) is enabled in production. "
+                    "This allows requests from any origin. "
+                    "Set CORS_ORIGINS environment variable to restrict access."
+                )
+            return ["*"]
+
+        # Split and clean origins
+        origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+        # Validate origins in production
+        if self.environment == "production":
+            for origin in origins:
+                if "localhost" in origin or "127.0.0.1" in origin:
+                    logger.warning(
+                        f"SECURITY WARNING: Localhost origin detected in production CORS: {origin}. "
+                        "Remove localhost origins from CORS_ORIGINS in production."
+                    )
+
+        return origins
 
 
 @lru_cache
