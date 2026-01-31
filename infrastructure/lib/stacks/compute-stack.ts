@@ -774,39 +774,39 @@ export class ComputeStack extends cdk.Stack {
       targets: [new targets.LambdaFunction(listingsIngestionLambda)],
     });
 
-    // Real-time scanner - every 5 minutes (scans for underpriced deals)
-    // Uses 8.6% of API capacity for first-mover advantage in deal detection
+    // Real-time scanner - every 3 minutes (aggressive deal detection)
+    // Increased frequency for competitive first-mover advantage
     new events.Rule(this, 'RealTimeScannerSchedule', {
       ruleName: getResourceName('real-time-scanner-trigger', config),
-      description: 'Triggers real-time market scanner every 5 minutes',
-      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+      description: 'Triggers real-time market scanner every 3 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(3)),
       targets: [new targets.LambdaFunction(realTimeScannerLambda)],
     });
 
-    // Metadata ingestion - every 30 minutes (backfills axie metadata)
-    // Optimized for new SkyMavis API key with higher rate limits
+    // Metadata ingestion - every 10 minutes (fast metadata coverage for beta users)
+    // Increased frequency to demonstrate API capacity needs for upgrade request
     new events.Rule(this, 'MetadataIngestionSchedule', {
       ruleName: getResourceName('metadata-ingestion-trigger', config),
-      description: 'Triggers metadata ingestion every 30 minutes',
-      schedule: events.Schedule.rate(cdk.Duration.minutes(30)),
+      description: 'Triggers metadata ingestion every 10 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(10)),
       targets: [new targets.LambdaFunction(metadataIngestionLambda)],
     });
 
-    // Breeding simulator - daily (builds breeding intelligence database)
-    // Uses 10% of API capacity for breeding ROI calculator
+    // Breeding simulator - every 8 hours (fresh breeding probability data)
+    // Increased frequency to keep breeding ROI calculations current
     new events.Rule(this, 'BreedingSimulatorSchedule', {
       ruleName: getResourceName('breeding-simulator-trigger', config),
-      description: 'Triggers breeding analysis once daily',
-      schedule: events.Schedule.rate(cdk.Duration.days(1)),
+      description: 'Triggers breeding analysis every 8 hours',
+      schedule: events.Schedule.rate(cdk.Duration.hours(8)),
       targets: [new targets.LambdaFunction(breedingSimulatorLambda)],
     });
 
-    // Market depth analyzer - hourly (tracks liquidity across price buckets)
-    // Uses 7.2% of API capacity for market depth intelligence
+    // Market depth analyzer - every 15 minutes (real-time liquidity tracking)
+    // Increased frequency to provide active traders with fresh depth data
     new events.Rule(this, 'MarketDepthAnalyzerSchedule', {
       ruleName: getResourceName('market-depth-analyzer-trigger', config),
-      description: 'Triggers market depth analysis every hour',
-      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      description: 'Triggers market depth analysis every 15 minutes',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(15)),
       targets: [new targets.LambdaFunction(marketDepthAnalyzerLambda)],
     });
 
