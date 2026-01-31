@@ -24,6 +24,7 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as kinesis from 'aws-cdk-lib/aws-kinesis';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as events from 'aws-cdk-lib/aws-events';
 import { Construct } from 'constructs';
@@ -104,6 +105,17 @@ export class ComputeStack extends cdk.Stack {
     // Enable with config.features.enableAppRunner = true
 
     if (config.features.enableAppRunner) {
+      // Read CORS origins from SSM Parameter Store
+      // This performs a lookup at CDK synthesis time from the parameter created in SecurityStack
+      // Ensure SecurityStack is deployed first with the parameter
+      const corsOrigins = ssm.StringParameter.valueFromLookup(
+        this,
+        `${parameterPrefix}/app/cors_origins`
+      );
+
+      // Log the value being used for deployment visibility and debugging
+      console.log(`[App Runner] CORS origins configured: ${corsOrigins}`);
+
       // VPC Connector for App Runner to access private resources
       const vpcConnector = new apprunner.CfnVpcConnector(this, 'VpcConnector', {
         vpcConnectorName: getResourceName('vpc-connector', config),
@@ -150,6 +162,8 @@ export class ComputeStack extends cdk.Stack {
                 { name: 'KINESIS_STREAM_NAME', value: listingsStream.streamName },
                 { name: 'LOG_LEVEL', value: config.name === 'development' ? 'DEBUG' : 'INFO' },
                 { name: 'DEBUG', value: config.name === 'development' ? 'true' : 'false' },
+                // CORS origins from SSM Parameter Store (environment-specific)
+                { name: 'CORS_ORIGINS', value: corsOrigins },
               ],
               startCommand: 'uvicorn src.main:app --host 0.0.0.0 --port 8000',
             },

@@ -225,6 +225,24 @@ export class SecurityStack extends cdk.Stack {
     });
 
     // ========================================================================
+    // Application Configuration Parameters
+    // ========================================================================
+
+    // CORS Origins - environment-specific allowed origins
+    // Production: Only production domains (no localhost)
+    // Development: Includes localhost for local testing
+    const corsOriginsDefault = config.name === 'production'
+      ? 'https://axiepro.io,https://www.axiepro.io,https://app.axiepro.io'
+      : 'https://axiepro.io,http://localhost:3000,http://127.0.0.1:3000';
+
+    new ssm.StringParameter(this, 'CorsOrigins', {
+      parameterName: `${this.parameterPrefix}/app/cors_origins`,
+      description: 'Allowed CORS origins (comma-separated) for FastAPI backend',
+      stringValue: corsOriginsDefault,
+      tier: ssm.ParameterTier.STANDARD,
+    });
+
+    // ========================================================================
     // IAM Roles
     // ========================================================================
 
@@ -277,6 +295,23 @@ export class SecurityStack extends cdk.Stack {
         actions: ['rds-db:connect'],
         resources: [
           `arn:aws:rds-db:${config.region}:${config.account}:dbuser:*/*`,
+        ],
+      })
+    );
+
+    // Grant SSM Parameter Store read access for configuration
+    // Enables runtime reading of environment-specific configuration values
+    this.appRunnerInstanceRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'SSMParameterStoreAccess',
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'ssm:GetParameter',
+          'ssm:GetParameters',
+          'ssm:GetParametersByPath',
+        ],
+        resources: [
+          `arn:aws:ssm:${config.region}:${config.account}:parameter${this.parameterPrefix}/*`,
         ],
       })
     );

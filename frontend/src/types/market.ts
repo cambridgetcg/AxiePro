@@ -156,7 +156,7 @@ export interface SalesResponse {
   success: boolean;
   data: Sale[];
   meta: {
-    count: number;
+    total: number;  // Total number of sales (matches backend "total" field)
     page: number;
     per_page: number;
     total_pages: number;
@@ -184,7 +184,7 @@ export interface ListingsResponse {
   success: boolean;
   data: Listing[];
   meta: {
-    count: number;
+    total: number;  // Total number of listings (matches backend "total" field)
     page: number;
     per_page: number;
     total_pages: number;

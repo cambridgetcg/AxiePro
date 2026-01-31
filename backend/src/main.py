@@ -81,9 +81,26 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Add CORS middleware
+# Add CORS middleware with validation
 # In production, set CORS_ORIGINS env var to restrict to specific domains
-cors_origins = settings.cors_origins.split(",") if settings.cors_origins != "*" else ["*"]
+cors_origins = settings.get_cors_origins_list()
+
+# Log CORS configuration at startup for security audit
+if settings.environment == "production":
+    if cors_origins == ["*"]:
+        logger.error(
+            "CRITICAL SECURITY ISSUE: CORS wildcard (*) enabled in production! "
+            "Any website can make requests to this API. "
+            "Set CORS_ORIGINS environment variable immediately."
+        )
+    else:
+        logger.info(
+            f"CORS enabled for {len(cors_origins)} origin(s) in production: "
+            f"{', '.join(cors_origins[:3])}{'...' if len(cors_origins) > 3 else ''}"
+        )
+elif settings.environment != "development":
+    logger.info(f"CORS enabled for {len(cors_origins)} origin(s): {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -96,10 +113,23 @@ app.add_middleware(
 # Health check endpoint
 @app.get("/health", tags=["system"])
 async def health_check():
-    """Check if the API is running."""
+    """
+    Check if the API is running and return configuration status.
+
+    Includes CORS configuration for deployment verification.
+    """
+    cors_list = settings.get_cors_origins_list()
     return {
         "status": "healthy",
         "version": "0.1.0",
+        "environment": settings.environment,
+        "cors": {
+            "enabled": True,
+            "origins_count": len(cors_list),
+            "wildcard": cors_list == ["*"],
+            # Only show origins in non-production for security
+            "origins": cors_list if settings.environment != "production" else None,
+        },
     }
 
 
