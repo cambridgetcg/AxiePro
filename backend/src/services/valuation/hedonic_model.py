@@ -255,7 +255,7 @@ class HedonicValuationService:
         query = text("""
             SELECT
                 am.axie_id,
-                am.class,
+                am.class AS class_,
                 am.breed_count,
                 am.pure_part_count,
                 am.gene_quality,
