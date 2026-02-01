@@ -28,6 +28,7 @@ class Wallet(Base):
     """Tracked wallet addresses."""
 
     __tablename__ = "wallets"
+    __table_args__ = {"schema": "axie"}
 
     address: Mapped[str] = mapped_column(String(42), primary_key=True)
     alias: Mapped[Optional[str]] = mapped_column(String(100))
@@ -74,12 +75,12 @@ class WalletHolding(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     wallet_address: Mapped[str] = mapped_column(
         String(42),
-        ForeignKey("wallets.address", ondelete="CASCADE"),
+        ForeignKey("axie.wallets.address", ondelete="CASCADE"),
         nullable=False,
     )
     axie_id: Mapped[int] = mapped_column(
         BigInteger,
-        ForeignKey("axies.id", ondelete="CASCADE"),
+        ForeignKey("axie.axies.id", ondelete="CASCADE"),
         nullable=False,
     )
 
@@ -126,6 +127,7 @@ class WalletHolding(Base):
         UniqueConstraint("wallet_address", "axie_id", name="uq_wallet_axie"),
         Index("idx_holdings_wallet", "wallet_address"),
         Index("idx_holdings_axie", "axie_id"),
+        {"schema": "axie"},
     )
 
     @property
