@@ -192,13 +192,18 @@ class MarketAggregatorService:
         max_price = max_result.scalar()
 
         # Get active listings count using denormalized class in Listing
-        listings_query = select(func.count(Listing.id)).where(
-            Listing.status == "active"
-        )
-        if axie_class:
-            listings_query = listings_query.where(Listing.class_ == axie_class.capitalize())
-        listings_result = await self.db.execute(listings_query)
-        active_listings = listings_result.scalar() or 0
+        # Note: axie.listings table may not exist yet - handle gracefully
+        try:
+            listings_query = select(func.count(Listing.id)).where(
+                Listing.status == "active"
+            )
+            if axie_class:
+                listings_query = listings_query.where(Listing.class_ == axie_class.capitalize())
+            listings_result = await self.db.execute(listings_query)
+            active_listings = listings_result.scalar() or 0
+        except Exception as e:
+            logger.warning(f"Could not query listings: {e}")
+            active_listings = 0
 
         return PeriodStats(
             volume_eth=float(row.volume_eth or 0),
@@ -246,16 +251,21 @@ class MarketAggregatorService:
         axie_class: Optional[str] = None,
     ) -> Optional[Decimal]:
         """Get current floor price from active listings."""
-        query = select(func.min(Listing.price_eth)).where(
-            Listing.status == "active"
-        )
+        # Note: axie.listings table may not exist yet - handle gracefully
+        try:
+            query = select(func.min(Listing.price_eth)).where(
+                Listing.status == "active"
+            )
 
-        if axie_class:
-            # Use denormalized class from Listing
-            query = query.where(Listing.class_ == axie_class.capitalize())
+            if axie_class:
+                # Use denormalized class from Listing
+                query = query.where(Listing.class_ == axie_class.capitalize())
 
-        result = await self.db.execute(query)
-        return result.scalar()
+            result = await self.db.execute(query)
+            return result.scalar()
+        except Exception as e:
+            logger.warning(f"Could not query floor price: {e}")
+            return None
 
     async def get_floor_prices_by_class(
         self,
@@ -275,21 +285,26 @@ class MarketAggregatorService:
                 return cached
 
         # Current floor prices from listings (using class_ column directly)
-        query = (
-            select(
-                Listing.class_,
-                func.min(Listing.price_eth).label("floor_eth"),
-                func.count(Listing.id).label("count"),
+        # Note: axie.listings table may not exist yet - handle gracefully
+        try:
+            query = (
+                select(
+                    Listing.class_,
+                    func.min(Listing.price_eth).label("floor_eth"),
+                    func.count(Listing.id).label("count"),
+                )
+                .where(and_(
+                    Listing.status == "active",
+                    Listing.class_.isnot(None)
+                ))
+                .group_by(Listing.class_)
             )
-            .where(and_(
-                Listing.status == "active",
-                Listing.class_.isnot(None)
-            ))
-            .group_by(Listing.class_)
-        )
 
-        result = await self.db.execute(query)
-        rows = result.all()
+            result = await self.db.execute(query)
+            rows = result.all()
+        except Exception as e:
+            logger.warning(f"Could not query floor prices by class: {e}")
+            rows = []
 
         # Get 24h-ago floor prices from snapshots for change calculation
         yesterday = datetime.now(timezone.utc) - timedelta(hours=24)

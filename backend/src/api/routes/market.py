@@ -9,12 +9,15 @@ Provides routes for:
 - Price analytics and time-series data
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from src.models import Listing, Sale, AxieClass, get_db
 from src.services.skymavis_client import SkyMavisClient
@@ -54,66 +57,74 @@ async def get_listings(
     """
     Get active marketplace listings.
     Uses denormalized class data in Listing table.
+    Note: axie.listings table may not exist yet - returns empty if unavailable.
     """
-    query = (
-        select(Listing)
-        .where(Listing.status == "active")
-    )
+    try:
+        query = (
+            select(Listing)
+            .where(Listing.status == "active")
+        )
 
-    # Apply filters using denormalized data
-    if class_:
-        try:
-            AxieClass(class_.lower())  # Validate class name
-            query = query.where(Listing.class_ == class_.capitalize())
-        except ValueError:
-            raise HTTPException(400, f"Invalid class: {class_}")
+        # Apply filters using denormalized data
+        if class_:
+            try:
+                AxieClass(class_.lower())  # Validate class name
+                query = query.where(Listing.class_ == class_.capitalize())
+            except ValueError:
+                raise HTTPException(400, f"Invalid class: {class_}")
 
-    if min_price is not None:
-        query = query.where(Listing.price_eth >= min_price)
-    if max_price is not None:
-        query = query.where(Listing.price_eth <= max_price)
-    if purity is not None:
-        # Purity not available in denormalized listing data - ignore filter
-        pass
+        if min_price is not None:
+            query = query.where(Listing.price_eth >= min_price)
+        if max_price is not None:
+            query = query.where(Listing.price_eth <= max_price)
+        if purity is not None:
+            # Purity not available in denormalized listing data - ignore filter
+            pass
 
-    # Sorting
-    sort_column = {
-        "price": Listing.price_eth,
-        "listed_at": Listing.listed_at,
-    }.get(sort, Listing.price_eth)
+        # Sorting
+        sort_column = {
+            "price": Listing.price_eth,
+            "listed_at": Listing.listed_at,
+        }.get(sort, Listing.price_eth)
 
-    if order == "desc":
-        query = query.order_by(sort_column.desc())
-    else:
-        query = query.order_by(sort_column.asc())
+        if order == "desc":
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
 
-    # Count
-    count_query = select(func.count()).select_from(query.subquery())
-    total_result = await db.execute(count_query)
-    total = total_result.scalar() or 0
+        # Count
+        count_query = select(func.count()).select_from(query.subquery())
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
 
-    # Paginate
-    offset = (page - 1) * per_page
-    query = query.offset(offset).limit(per_page)
+        # Paginate
+        offset = (page - 1) * per_page
+        query = query.offset(offset).limit(per_page)
 
-    result = await db.execute(query)
-    listings_rows = result.scalars().all()
+        result = await db.execute(query)
+        listings_rows = result.scalars().all()
 
-    listings = []
-    for listing in listings_rows:
-        listings.append({
-            "id": listing.id,
-            "axie_id": listing.axie_id,
-            "seller": listing.seller_address,
-            "price_eth": float(listing.price_eth),
-            "price_usd": float(listing.price_usd) if listing.price_usd else None,
-            "listed_at": listing.listed_at.isoformat(),
-            "axie": {
-                "class": listing.class_,
-                "purity": None,  # Not available in denormalized data
-                "breed_count": listing.breed_count,
-            }
-        })
+        listings = []
+        for listing in listings_rows:
+            listings.append({
+                "id": listing.id,
+                "axie_id": listing.axie_id,
+                "seller": listing.seller_address,
+                "price_eth": float(listing.price_eth),
+                "price_usd": float(listing.price_usd) if listing.price_usd else None,
+                "listed_at": listing.listed_at.isoformat(),
+                "axie": {
+                    "class": listing.class_,
+                    "purity": None,  # Not available in denormalized data
+                    "breed_count": listing.breed_count,
+                }
+            })
+
+    except Exception as e:
+        # Table may not exist - return empty result
+        logger.warning(f"Could not query listings: {e}")
+        listings = []
+        total = 0
 
     return {
         "success": True,
@@ -122,7 +133,7 @@ async def get_listings(
             "total": total,
             "page": page,
             "per_page": per_page,
-            "total_pages": (total + per_page - 1) // per_page,
+            "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
         }
     }
 
@@ -238,38 +249,44 @@ async def get_floor_prices(
     Get current floor prices by class.
     Uses denormalized class data in Listing table.
     Note: Purity grouping not available (data not denormalized).
+    Note: axie.listings table may not exist yet - returns empty if unavailable.
     """
+    floors = []
     if group_by == "class":
         # Floor price by class using denormalized Listing.class_
-        query = (
-            select(
-                Listing.class_,
-                func.min(Listing.price_eth).label("floor_eth"),
-                func.count(Listing.id).label("count"),
+        try:
+            query = (
+                select(
+                    Listing.class_,
+                    func.min(Listing.price_eth).label("floor_eth"),
+                    func.count(Listing.id).label("count"),
+                )
+                .where(Listing.status == "active")
+                .where(Listing.class_.isnot(None))
+                .group_by(Listing.class_)
             )
-            .where(Listing.status == "active")
-            .where(Listing.class_.isnot(None))
-            .group_by(Listing.class_)
-        )
 
-        if class_:
-            try:
-                AxieClass(class_.lower())  # Validate
-                query = query.where(Listing.class_ == class_.capitalize())
-            except ValueError:
-                pass
+            if class_:
+                try:
+                    AxieClass(class_.lower())  # Validate
+                    query = query.where(Listing.class_ == class_.capitalize())
+                except ValueError:
+                    pass
 
-        result = await db.execute(query)
-        rows = result.all()
+            result = await db.execute(query)
+            rows = result.all()
 
-        floors = [
-            {
-                "class": row.class_.lower() if row.class_ else 'unknown',
-                "floor_eth": float(row.floor_eth) if row.floor_eth else 0,
-                "count": row.count,
-            }
-            for row in rows
-        ]
+            floors = [
+                {
+                    "class": row.class_.lower() if row.class_ else 'unknown',
+                    "floor_eth": float(row.floor_eth) if row.floor_eth else 0,
+                    "count": row.count,
+                }
+                for row in rows
+            ]
+        except Exception as e:
+            logger.warning(f"Could not query floor prices: {e}")
+            floors = []
 
     elif group_by == "purity":
         # Purity not available in denormalized data
@@ -339,19 +356,25 @@ async def get_market_stats(
             prices = [float(p[0]) for p in median_result.all()]
             median_price = prices[len(prices) // 2] if prices else 0
 
-            # Get floor price from listings
-            floor_query = select(func.min(Listing.price_eth)).where(
-                Listing.status == "active"
-            )
-            floor_result = await db.execute(floor_query)
-            floor_price = floor_result.scalar()
+            # Get floor price from listings (may not exist)
+            try:
+                floor_query = select(func.min(Listing.price_eth)).where(
+                    Listing.status == "active"
+                )
+                floor_result = await db.execute(floor_query)
+                floor_price = floor_result.scalar()
+            except Exception:
+                floor_price = None
 
-            # Get active listings count
-            listings_query = select(func.count(Listing.id)).where(
-                Listing.status == "active"
-            )
-            listings_result = await db.execute(listings_query)
-            active_listings = listings_result.scalar() or 0
+            # Get active listings count (may not exist)
+            try:
+                listings_query = select(func.count(Listing.id)).where(
+                    Listing.status == "active"
+                )
+                listings_result = await db.execute(listings_query)
+                active_listings = listings_result.scalar() or 0
+            except Exception:
+                active_listings = 0
 
             stats[period_name] = {
                 "volume_eth": float(row.volume_eth or 0),
