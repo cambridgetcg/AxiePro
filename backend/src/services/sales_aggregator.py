@@ -18,7 +18,7 @@ from typing import Optional, TypedDict, List, Any
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Sale, Axie
+from src.models import Sale
 from src.services.cache import get_cache_manager, RedisCacheManager
 
 logger = logging.getLogger(__name__)
@@ -129,10 +129,10 @@ class SalesAggregatorService:
         # Query database
         since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        # Note: Sale model now maps to axie.axie_sales with block_timestamp column
+        # Note: Sale model maps to axie.axie_sales with denormalized class column
+        # No join with Axie table needed - class is stored directly in axie_sales
         query = (
-            select(Sale, Axie)
-            .outerjoin(Axie, Sale.axie_id == Axie.id)
+            select(Sale)
             .where(Sale.block_timestamp >= since)
             .order_by(desc(Sale.block_timestamp))
             .limit(limit)
@@ -143,16 +143,12 @@ class SalesAggregatorService:
             query = query.where(Sale.class_ == axie_class.capitalize())
 
         result = await self.db.execute(query)
-        rows = result.all()
+        sales_rows = result.scalars().all()
 
         sales = []
-        for sale, axie in rows:
-            # Prefer denormalized class from sale, fall back to axie relationship
-            sale_class = sale.class_ if sale.class_ else (
-                axie.class_.value if axie and hasattr(axie.class_, 'value') else (
-                    str(axie.class_) if axie else 'unknown'
-                )
-            )
+        for sale in sales_rows:
+            # Use denormalized class from sale
+            sale_class = sale.class_ if sale.class_ else 'unknown'
             sales.append(RecentSaleData(
                 id=sale.id,
                 axie_id=sale.axie_id or 0,
@@ -211,9 +207,8 @@ class SalesAggregatorService:
         ).where(Sale.block_timestamp >= since)
 
         if axie_class:
-            query = query.join(Axie, Sale.axie_id == Axie.id).where(
-                Axie.class_ == axie_class.lower()
-            )
+            # Use denormalized class from Sale (stored as capitalized, e.g., "Beast")
+            query = query.where(Sale.class_ == axie_class.capitalize())
 
         result = await self.db.execute(query)
         row = result.one()
@@ -256,9 +251,8 @@ class SalesAggregatorService:
         )
 
         if axie_class:
-            query = query.join(Axie, Sale.axie_id == Axie.id).where(
-                Axie.class_ == axie_class.lower()
-            )
+            # Use denormalized class from Sale
+            query = query.where(Sale.class_ == axie_class.capitalize())
 
         result = await self.db.execute(query)
         prices = [row[0] for row in result.all()]
@@ -275,17 +269,17 @@ class SalesAggregatorService:
         self,
         since: datetime,
     ) -> dict[str, dict[str, Any]]:
-        """Get sales breakdown by class."""
+        """Get sales breakdown by class using denormalized class in Sale."""
         query = (
             select(
-                Axie.class_,
+                Sale.class_,
                 func.count(Sale.id).label("sales_count"),
                 func.coalesce(func.sum(Sale.price_token), 0).label("volume"),
                 func.coalesce(func.avg(Sale.price_token), 0).label("avg_price"),
             )
-            .join(Axie, Sale.axie_id == Axie.id)
             .where(Sale.block_timestamp >= since)
-            .group_by(Axie.class_)
+            .where(Sale.class_.isnot(None))  # Only count sales with known class
+            .group_by(Sale.class_)
         )
 
         result = await self.db.execute(query)
@@ -293,8 +287,8 @@ class SalesAggregatorService:
 
         by_class = {}
         for row in rows:
-            class_name = row.class_.value if hasattr(row.class_, 'value') else str(row.class_)
-            by_class[class_name] = {
+            class_name = str(row.class_) if row.class_ else 'unknown'
+            by_class[class_name.lower()] = {
                 "sales_count": row.sales_count or 0,
                 "volume_eth": float(row.volume or 0),
                 "avg_price_eth": float(row.avg_price or 0),
@@ -331,17 +325,16 @@ class SalesAggregatorService:
 
         since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        # Get aggregated stats for this class
+        # Get aggregated stats for this class using denormalized class in Sale
         stats_query = (
             select(
                 func.count(Sale.id).label("total_sales"),
                 func.coalesce(func.sum(Sale.price_token), 0).label("total_volume"),
                 func.coalesce(func.avg(Sale.price_token), 0).label("avg_price"),
             )
-            .join(Axie, Sale.axie_id == Axie.id)
             .where(and_(
                 Sale.block_timestamp >= since,
-                Axie.class_ == axie_class.lower(),
+                Sale.class_ == axie_class.capitalize(),
             ))
         )
 
