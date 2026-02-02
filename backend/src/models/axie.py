@@ -109,11 +109,7 @@ class Axie(Base):
     morale: Mapped[Optional[int]] = mapped_column(SmallInteger)
 
     # Relationships
-    parts: Mapped[list["AxiePart"]] = relationship(
-        "AxiePart",
-        back_populates="axie",
-        cascade="all, delete-orphan",
-    )
+    # Note: Part/AxiePart tables not created - parts stored in denormalized parts_json column
     matron: Mapped[Optional["Axie"]] = relationship(
         "Axie",
         foreign_keys=[matron_id],
@@ -181,16 +177,14 @@ class Part(Base):
         SQLEnum(PartType, name="part_type"),
         nullable=False,
     )
-    ability_id: Mapped[Optional[int]] = mapped_column(
-        Integer,
-        ForeignKey("abilities.id", ondelete="SET NULL"),
-    )
+    # Note: abilities table does not exist in production - FK disabled
+    ability_id: Mapped[Optional[int]] = mapped_column(Integer)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    # Relationships
-    ability: Mapped[Optional["Ability"]] = relationship("Ability", back_populates="parts")
-    axie_parts: Mapped[list["AxiePart"]] = relationship("AxiePart", back_populates="part")
+    # Note: Relationships disabled - tables don't exist in production
+    # ability: Mapped[Optional["Ability"]] = relationship("Ability", back_populates="parts")
+    # axie_parts: Mapped[list["AxiePart"]] = relationship("AxiePart", back_populates="part")
 
     __table_args__ = (
         Index("idx_parts_class", "class"),
@@ -204,16 +198,10 @@ class AxiePart(Base):
     __tablename__ = "axie_parts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    axie_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("axies.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    part_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("parts.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    # Note: These tables do not exist in production (parts denormalized in axies.parts_json)
+    # FK references disabled to prevent import errors
+    axie_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    part_id: Mapped[int] = mapped_column(Integer, nullable=False)
     position: Mapped[PartType] = mapped_column(
         SQLEnum(PartType, name="part_type"),
         nullable=False,
@@ -223,9 +211,9 @@ class AxiePart(Base):
         nullable=False,
     )
 
-    # Relationships
-    axie: Mapped["Axie"] = relationship("Axie", back_populates="parts")
-    part: Mapped["Part"] = relationship("Part", back_populates="axie_parts")
+    # Note: Relationships disabled - tables don't exist in production
+    # axie: Mapped["Axie"] = relationship("Axie", back_populates="parts")
+    # part: Mapped["Part"] = relationship("Part", back_populates="axie_parts")
 
     __table_args__ = (
         UniqueConstraint("axie_id", "position", "gene_type", name="uq_axie_position_gene"),
@@ -258,5 +246,5 @@ class Ability(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    # Relationships
-    parts: Mapped[list["Part"]] = relationship("Part", back_populates="ability")
+    # Note: Relationship disabled - tables don't exist in production
+    # parts: Mapped[list["Part"]] = relationship("Part", back_populates="ability")

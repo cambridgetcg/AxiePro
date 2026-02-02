@@ -13,7 +13,7 @@ from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.models import Axie, AxiePart, Part, Listing, AxieClass, get_db
+from src.models import Axie, Listing, AxieClass, get_db
 from src.utils.gene_parser import GeneParser
 from src.services.skymavis_client import SkyMavisClient
 
@@ -62,8 +62,8 @@ async def search_axies(
     breed count, parts, and price range.
     """
     # Build base query with eager loading to prevent N+1 queries
+    # Note: Parts data is denormalized in axies.parts_json, not in separate tables
     query = select(Axie).options(
-        selectinload(Axie.parts).selectinload(AxiePart.part),
         selectinload(Axie.listings),
     )
 
@@ -165,15 +165,13 @@ async def get_axie(
     Returns complete Axie data including genes, parts, stats,
     and optionally listing and sales history.
     """
-    # Try to get from database first - eager load relationships to prevent N+1 queries
-    query = select(Axie).where(Axie.id == axie_id).options(
-        selectinload(Axie.parts).selectinload(AxiePart.part),
-    )
+    # Try to get from database first
+    # Note: Parts data is denormalized in axies.parts_json, not in separate tables
+    # Note: Sales data is in axie.axie_sales, not a relationship on Axie
+    query = select(Axie).where(Axie.id == axie_id)
 
     if include_listing:
         query = query.options(selectinload(Axie.listings))
-    if include_sales:
-        query = query.options(selectinload(Axie.sales))
 
     result = await db.execute(query)
     axie = result.scalar_one_or_none()
@@ -196,6 +194,15 @@ async def get_axie(
                 }
 
         if include_sales:
+            # Sales are in denormalized axie.axie_sales table - query separately
+            from src.models import Sale
+            sales_result = await db.execute(
+                select(Sale)
+                .where(Sale.axie_id == axie_id)
+                .order_by(Sale.block_timestamp.desc())
+                .limit(10)
+            )
+            sales = sales_result.scalars().all()
             data["sales_history"] = [
                 {
                     "price_eth": float(s.price_eth),
@@ -204,7 +211,7 @@ async def get_axie(
                     "seller": s.seller_address,
                     "buyer": s.buyer_address,
                 }
-                for s in sorted(axie.sales, key=lambda x: x.sold_at, reverse=True)[:10]
+                for s in sales
             ]
 
         return {"success": True, "data": data}
