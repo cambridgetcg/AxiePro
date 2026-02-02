@@ -203,6 +203,7 @@ class MarketAggregatorService:
             active_listings = listings_result.scalar() or 0
         except Exception as e:
             logger.warning(f"Could not query listings: {e}")
+            await self.db.rollback()
             active_listings = 0
 
         return PeriodStats(
@@ -265,6 +266,8 @@ class MarketAggregatorService:
             return result.scalar()
         except Exception as e:
             logger.warning(f"Could not query floor price: {e}")
+            # Rollback to recover from failed transaction state
+            await self.db.rollback()
             return None
 
     async def get_floor_prices_by_class(
@@ -304,6 +307,7 @@ class MarketAggregatorService:
             rows = result.all()
         except Exception as e:
             logger.warning(f"Could not query floor prices by class: {e}")
+            await self.db.rollback()
             rows = []
 
         # Get 24h-ago floor prices from snapshots for change calculation
