@@ -1,7 +1,7 @@
 """Database models."""
 
 from .database import Base, engine, get_db, get_session, init_db, close_db
-from .axie import Axie, Part, AxiePart, Ability, AxieClass, PartType, GeneType
+from .axie import Axie, AxieClass, PartType, GeneType
 from .market import Listing, Sale, PriceHistory, PriceSnapshot, MarketStats
 from .meta import MetaShift, ShiftType
 from .deals import DetectedDeal, DealStatus
@@ -26,9 +26,6 @@ __all__ = [
     "close_db",
     # Axie models
     "Axie",
-    "Part",
-    "AxiePart",
-    "Ability",
     # Market models
     "Listing",
     "Sale",
