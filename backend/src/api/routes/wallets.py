@@ -108,16 +108,16 @@ async def get_wallet(
     buy_stats = await db.execute(
         select(
             func.count(Sale.id),
-            func.sum(Sale.price_eth),
-        ).where(Sale.buyer_address == address)
+            func.sum(Sale.price_token),
+        ).where(Sale.buyer == address)
     )
     buy_row = buy_stats.one()
 
     sell_stats = await db.execute(
         select(
             func.count(Sale.id),
-            func.sum(Sale.price_eth),
-        ).where(Sale.seller_address == address)
+            func.sum(Sale.price_token),
+        ).where(Sale.seller == address)
     )
     sell_row = sell_stats.one()
 
@@ -219,20 +219,20 @@ async def get_wallet_trades(
     address = address.lower()
 
     if type_ == "buy":
-        query = select(Sale).where(Sale.buyer_address == address)
+        query = select(Sale).where(Sale.buyer == address)
     elif type_ == "sell":
-        query = select(Sale).where(Sale.seller_address == address)
+        query = select(Sale).where(Sale.seller == address)
     else:
         query = select(Sale).where(
-            or_(Sale.buyer_address == address, Sale.seller_address == address)
+            or_(Sale.buyer == address, Sale.seller == address)
         )
 
     if from_date:
-        query = query.where(Sale.sold_at >= from_date)
+        query = query.where(Sale.block_timestamp >= from_date)
     if to_date:
-        query = query.where(Sale.sold_at <= to_date)
+        query = query.where(Sale.block_timestamp <= to_date)
 
-    query = query.order_by(Sale.sold_at.desc())
+    query = query.order_by(Sale.block_timestamp.desc())
 
     # Count
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
