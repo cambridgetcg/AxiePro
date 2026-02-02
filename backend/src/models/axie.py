@@ -91,11 +91,11 @@ class Axie(Base):
     # Parent references (self-referential)
     matron_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
-        ForeignKey("axies.id", ondelete="SET NULL"),
+        ForeignKey("axie.axies.id", ondelete="SET NULL"),
     )
     sire_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
-        ForeignKey("axies.id", ondelete="SET NULL"),
+        ForeignKey("axie.axies.id", ondelete="SET NULL"),
     )
 
     # Precomputed purity scores
@@ -127,18 +127,17 @@ class Axie(Base):
     listings: Mapped[list["Listing"]] = relationship(
         "Listing",
         back_populates="axie",
+        foreign_keys="[Listing.axie_id]",
     )
-    sales: Mapped[list["Sale"]] = relationship(
-        "Sale",
-        back_populates="axie",
-    )
+    # Note: Sales relationship removed - Sale model uses denormalized axie.axie_sales table
 
-    # Indexes
+    # Indexes and schema
     __table_args__ = (
         Index("idx_axies_class", "class"),
         Index("idx_axies_purity", purity_score),
         Index("idx_axies_breed_count", breed_count),
         Index("idx_axies_class_purity", "class", purity_score),
+        {"schema": "axie"},
     )
 
     def to_dict(self) -> dict:
