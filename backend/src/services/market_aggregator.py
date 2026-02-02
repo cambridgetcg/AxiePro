@@ -165,11 +165,11 @@ class MarketAggregatorService:
         # Build base query for sales
         sales_query = select(
             func.count(Sale.id).label("sales_count"),
-            func.coalesce(func.sum(Sale.price_eth), 0).label("volume_eth"),
-            func.coalesce(func.avg(Sale.price_eth), 0).label("avg_price"),
-            func.count(func.distinct(Sale.buyer_address)).label("unique_buyers"),
-            func.count(func.distinct(Sale.seller_address)).label("unique_sellers"),
-        ).where(Sale.sold_at >= since)
+            func.coalesce(func.sum(Sale.price_token), 0).label("volume_eth"),
+            func.coalesce(func.avg(Sale.price_token), 0).label("avg_price"),
+            func.count(func.distinct(Sale.buyer)).label("unique_buyers"),
+            func.count(func.distinct(Sale.seller)).label("unique_sellers"),
+        ).where(Sale.block_timestamp >= since)
 
         # Apply class filter if specified
         if axie_class:
@@ -187,7 +187,7 @@ class MarketAggregatorService:
         floor_price = await self._get_current_floor(axie_class)
 
         # Get max price
-        max_query = select(func.max(Sale.price_eth)).where(Sale.sold_at >= since)
+        max_query = select(func.max(Sale.price_token)).where(Sale.block_timestamp >= since)
         if axie_class:
             max_query = max_query.join(
                 Axie, Sale.axie_id == Axie.id
@@ -227,9 +227,9 @@ class MarketAggregatorService:
         # Use percentile_cont for accurate median
         # Fallback to simple approach for compatibility
         query = (
-            select(Sale.price_eth)
-            .where(Sale.sold_at >= since)
-            .order_by(Sale.price_eth)
+            select(Sale.price_token)
+            .where(Sale.block_timestamp >= since)
+            .order_by(Sale.price_token)
         )
 
         if axie_class:

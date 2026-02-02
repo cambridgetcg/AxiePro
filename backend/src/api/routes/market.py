@@ -162,23 +162,23 @@ async def get_sales(
             raise HTTPException(400, f"Invalid class: {class_}")
 
     if min_price is not None:
-        query = query.where(Sale.price_eth >= min_price)
+        query = query.where(Sale.price_token >= min_price)
     if max_price is not None:
-        query = query.where(Sale.price_eth <= max_price)
+        query = query.where(Sale.price_token <= max_price)
     if from_date:
-        query = query.where(Sale.sold_at >= from_date)
+        query = query.where(Sale.block_timestamp >= from_date)
     if to_date:
-        query = query.where(Sale.sold_at <= to_date)
+        query = query.where(Sale.block_timestamp <= to_date)
     if seller:
-        query = query.where(Sale.seller_address == seller.lower())
+        query = query.where(Sale.seller == seller.lower())
     if buyer:
-        query = query.where(Sale.buyer_address == buyer.lower())
+        query = query.where(Sale.buyer == buyer.lower())
 
     # Sorting
     sort_column = {
-        "date": Sale.sold_at,
-        "price": Sale.price_eth,
-    }.get(sort, Sale.sold_at)
+        "date": Sale.block_timestamp,
+        "price": Sale.price_token,
+    }.get(sort, Sale.block_timestamp)
 
     if order == "desc":
         query = query.order_by(sort_column.desc())
@@ -350,20 +350,20 @@ async def get_market_stats(
             # Sales stats
             sales_query = select(
                 func.count(Sale.id).label("sales_count"),
-                func.coalesce(func.sum(Sale.price_eth), 0).label("volume_eth"),
-                func.coalesce(func.avg(Sale.price_eth), 0).label("avg_price"),
-                func.count(func.distinct(Sale.buyer_address)).label("unique_buyers"),
-                func.count(func.distinct(Sale.seller_address)).label("unique_sellers"),
-            ).where(Sale.sold_at >= since)
+                func.coalesce(func.sum(Sale.price_token), 0).label("volume_eth"),
+                func.coalesce(func.avg(Sale.price_token), 0).label("avg_price"),
+                func.count(func.distinct(Sale.buyer)).label("unique_buyers"),
+                func.count(func.distinct(Sale.seller)).label("unique_sellers"),
+            ).where(Sale.block_timestamp >= since)
 
             result = await db.execute(sales_query)
             row = result.one()
 
             # Calculate median
             median_query = (
-                select(Sale.price_eth)
-                .where(Sale.sold_at >= since)
-                .order_by(Sale.price_eth)
+                select(Sale.price_token)
+                .where(Sale.block_timestamp >= since)
+                .order_by(Sale.price_token)
             )
             median_result = await db.execute(median_query)
             prices = [float(p[0]) for p in median_result.all()]
