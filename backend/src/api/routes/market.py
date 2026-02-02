@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Listing, Sale, Axie, AxieClass, get_db
+from src.models import Listing, Sale, AxieClass, get_db
 from src.services.skymavis_client import SkyMavisClient
 from src.services.market_aggregator import (
     MarketAggregatorService,
@@ -53,18 +53,18 @@ async def get_listings(
 ):
     """
     Get active marketplace listings.
+    Uses denormalized class data in Listing table.
     """
     query = (
-        select(Listing, Axie)
-        .join(Axie, Listing.axie_id == Axie.id)
+        select(Listing)
         .where(Listing.status == "active")
     )
 
-    # Apply filters
+    # Apply filters using denormalized data
     if class_:
         try:
-            axie_class = AxieClass(class_.lower())
-            query = query.where(Axie.class_ == axie_class)
+            AxieClass(class_.lower())  # Validate class name
+            query = query.where(Listing.class_ == class_.capitalize())
         except ValueError:
             raise HTTPException(400, f"Invalid class: {class_}")
 
@@ -73,7 +73,8 @@ async def get_listings(
     if max_price is not None:
         query = query.where(Listing.price_eth <= max_price)
     if purity is not None:
-        query = query.where(Axie.purity_score >= purity)
+        # Purity not available in denormalized listing data - ignore filter
+        pass
 
     # Sorting
     sort_column = {
@@ -96,10 +97,10 @@ async def get_listings(
     query = query.offset(offset).limit(per_page)
 
     result = await db.execute(query)
-    rows = result.all()
+    listings_rows = result.scalars().all()
 
     listings = []
-    for listing, axie in rows:
+    for listing in listings_rows:
         listings.append({
             "id": listing.id,
             "axie_id": listing.axie_id,
@@ -108,9 +109,9 @@ async def get_listings(
             "price_usd": float(listing.price_usd) if listing.price_usd else None,
             "listed_at": listing.listed_at.isoformat(),
             "axie": {
-                "class": axie.class_.value,
-                "purity": axie.purity_score,
-                "breed_count": axie.breed_count,
+                "class": listing.class_,
+                "purity": None,  # Not available in denormalized data
+                "breed_count": listing.breed_count,
             }
         })
 
@@ -147,17 +148,15 @@ async def get_sales(
 ):
     """
     Get sales history.
+    Uses denormalized class data in Sale table.
     """
-    query = (
-        select(Sale, Axie)
-        .outerjoin(Axie, Sale.axie_id == Axie.id)
-    )
+    query = select(Sale)
 
-    # Apply filters
+    # Apply filters using denormalized data
     if class_:
         try:
-            axie_class = AxieClass(class_.lower())
-            query = query.where(Axie.class_ == axie_class)
+            AxieClass(class_.lower())  # Validate class name
+            query = query.where(Sale.class_ == class_.capitalize())
         except ValueError:
             raise HTTPException(400, f"Invalid class: {class_}")
 
@@ -195,24 +194,25 @@ async def get_sales(
     query = query.offset(offset).limit(per_page)
 
     result = await db.execute(query)
-    rows = result.all()
+    sales_rows = result.scalars().all()
 
     sales = []
-    for sale, axie in rows:
+    for sale in sales_rows:
         sale_data = {
             "id": sale.id,
             "axie_id": sale.axie_id,
-            "seller": sale.seller_address,
-            "buyer": sale.buyer_address,
-            "price_eth": float(sale.price_eth),
+            "seller": sale.seller,
+            "buyer": sale.buyer,
+            "price_eth": float(sale.price_token),
             "price_usd": float(sale.price_usd) if sale.price_usd else None,
-            "sold_at": sale.sold_at.isoformat(),
+            "sold_at": sale.block_timestamp.isoformat() if sale.block_timestamp else None,
             "tx_hash": sale.tx_hash,
         }
-        if axie:
+        # Use denormalized class from Sale
+        if sale.class_:
             sale_data["axie"] = {
-                "class": axie.class_.value,
-                "purity": axie.purity_score,
+                "class": sale.class_,
+                "purity": None,  # Not available in denormalized data
             }
         sales.append(sale_data)
 
@@ -231,31 +231,31 @@ async def get_sales(
 @router.get("/floor-prices")
 async def get_floor_prices(
     class_: Optional[str] = Query(None, alias="class"),
-    group_by: str = Query("class", description="Group by: class, purity"),
+    group_by: str = Query("class", description="Group by: class (purity not available)"),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get current floor prices by class or purity.
+    Get current floor prices by class.
+    Uses denormalized class data in Listing table.
+    Note: Purity grouping not available (data not denormalized).
     """
     if group_by == "class":
-        # Floor price by class
+        # Floor price by class using denormalized Listing.class_
         query = (
             select(
-                Axie.class_,
+                Listing.class_,
                 func.min(Listing.price_eth).label("floor_eth"),
                 func.count(Listing.id).label("count"),
             )
-            .join(Listing, and_(
-                Listing.axie_id == Axie.id,
-                Listing.status == "active"
-            ))
-            .group_by(Axie.class_)
+            .where(Listing.status == "active")
+            .where(Listing.class_.isnot(None))
+            .group_by(Listing.class_)
         )
 
         if class_:
             try:
-                axie_class = AxieClass(class_.lower())
-                query = query.where(Axie.class_ == axie_class)
+                AxieClass(class_.lower())  # Validate
+                query = query.where(Listing.class_ == class_.capitalize())
             except ValueError:
                 pass
 
@@ -264,48 +264,16 @@ async def get_floor_prices(
 
         floors = [
             {
-                "class": row.class_.value,
-                "floor_eth": float(row.floor_eth),
+                "class": row.class_.lower() if row.class_ else 'unknown',
+                "floor_eth": float(row.floor_eth) if row.floor_eth else 0,
                 "count": row.count,
             }
             for row in rows
         ]
 
     elif group_by == "purity":
-        # Floor price by purity (within a class)
-        query = (
-            select(
-                Axie.class_,
-                Axie.purity_score,
-                func.min(Listing.price_eth).label("floor_eth"),
-                func.count(Listing.id).label("count"),
-            )
-            .join(Listing, and_(
-                Listing.axie_id == Axie.id,
-                Listing.status == "active"
-            ))
-            .group_by(Axie.class_, Axie.purity_score)
-        )
-
-        if class_:
-            try:
-                axie_class = AxieClass(class_.lower())
-                query = query.where(Axie.class_ == axie_class)
-            except ValueError:
-                pass
-
-        result = await db.execute(query)
-        rows = result.all()
-
-        floors = [
-            {
-                "class": row.class_.value,
-                "purity": row.purity_score,
-                "floor_eth": float(row.floor_eth),
-                "count": row.count,
-            }
-            for row in rows
-        ]
+        # Purity not available in denormalized data
+        floors = []
 
     else:
         raise HTTPException(400, "Invalid group_by value")
@@ -341,6 +309,8 @@ async def get_market_stats(
             "cached": use_cache,
         }
     except Exception as e:
+        # Rollback the failed transaction before trying fallback queries
+        await db.rollback()
         # Fallback to direct query if aggregator fails
         stats = {}
 

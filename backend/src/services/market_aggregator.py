@@ -19,7 +19,7 @@ from dataclasses import dataclass, asdict
 from sqlalchemy import select, func, and_, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Sale, Listing, Axie, PriceSnapshot, MarketStats
+from src.models import Sale, Listing, PriceSnapshot, MarketStats
 from src.services.cache import get_cache_manager, RedisCacheManager
 
 logger = logging.getLogger(__name__)
@@ -171,11 +171,9 @@ class MarketAggregatorService:
             func.count(func.distinct(Sale.seller)).label("unique_sellers"),
         ).where(Sale.block_timestamp >= since)
 
-        # Apply class filter if specified
+        # Apply class filter using denormalized class in Sale
         if axie_class:
-            sales_query = sales_query.join(
-                Axie, Sale.axie_id == Axie.id
-            ).where(Axie.class_ == axie_class.lower())
+            sales_query = sales_query.where(Sale.class_ == axie_class.capitalize())
 
         result = await self.db.execute(sales_query)
         row = result.one()
@@ -186,23 +184,19 @@ class MarketAggregatorService:
         # Get floor price from latest snapshots or active listings
         floor_price = await self._get_current_floor(axie_class)
 
-        # Get max price
+        # Get max price using denormalized class
         max_query = select(func.max(Sale.price_token)).where(Sale.block_timestamp >= since)
         if axie_class:
-            max_query = max_query.join(
-                Axie, Sale.axie_id == Axie.id
-            ).where(Axie.class_ == axie_class.lower())
+            max_query = max_query.where(Sale.class_ == axie_class.capitalize())
         max_result = await self.db.execute(max_query)
         max_price = max_result.scalar()
 
-        # Get active listings count
+        # Get active listings count using denormalized class in Listing
         listings_query = select(func.count(Listing.id)).where(
             Listing.status == "active"
         )
         if axie_class:
-            listings_query = listings_query.join(
-                Axie, Listing.axie_id == Axie.id
-            ).where(Axie.class_ == axie_class.lower())
+            listings_query = listings_query.where(Listing.class_ == axie_class.capitalize())
         listings_result = await self.db.execute(listings_query)
         active_listings = listings_result.scalar() or 0
 
@@ -233,9 +227,8 @@ class MarketAggregatorService:
         )
 
         if axie_class:
-            query = query.join(
-                Axie, Sale.axie_id == Axie.id
-            ).where(Axie.class_ == axie_class.lower())
+            # Use denormalized class from Sale
+            query = query.where(Sale.class_ == axie_class.capitalize())
 
         result = await self.db.execute(query)
         prices = [row[0] for row in result.all()]
@@ -258,9 +251,8 @@ class MarketAggregatorService:
         )
 
         if axie_class:
-            query = query.join(
-                Axie, Listing.axie_id == Axie.id
-            ).where(Axie.class_ == axie_class.lower())
+            # Use denormalized class from Listing
+            query = query.where(Listing.class_ == axie_class.capitalize())
 
         result = await self.db.execute(query)
         return result.scalar()
