@@ -4,7 +4,7 @@ SQLAlchemy models for Axie data.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 import enum
 
 from sqlalchemy import (
@@ -25,8 +25,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
-if TYPE_CHECKING:
-    from .market import Listing, Sale
+# Note: Removed TYPE_CHECKING imports for Listing and Sale
+# The listings relationship was removed since axie.axies table doesn't exist in production
 
 
 class AxieClass(str, enum.Enum):
@@ -120,11 +120,7 @@ class Axie(Base):
         foreign_keys=[sire_id],
         remote_side=[id],
     )
-    listings: Mapped[list["Listing"]] = relationship(
-        "Listing",
-        back_populates="axie",
-        foreign_keys="[Listing.axie_id]",
-    )
+    # Note: Listings relationship removed - axie.listings table doesn't exist in production
     # Note: Sales relationship removed - Sale model uses denormalized axie.axie_sales table
 
     # Indexes and schema

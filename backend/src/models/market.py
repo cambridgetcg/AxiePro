@@ -4,12 +4,11 @@ SQLAlchemy models for market data (listings, sales, prices).
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
     DateTime,
-    ForeignKey,
     Index,
     Integer,
     Numeric,
@@ -18,13 +17,10 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
 from .axie import AxieClass
-
-if TYPE_CHECKING:
-    from .axie import Axie
 
 
 class Listing(Base):
@@ -33,11 +29,9 @@ class Listing(Base):
     __tablename__ = "listings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    axie_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("axie.axies.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    # Note: FK to axie.axies removed - table doesn't exist in production
+    # Using denormalized class_ and breed_count columns instead
+    axie_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     seller_address: Mapped[str] = mapped_column(String(42), nullable=False, index=True)
 
     # Pricing
@@ -62,8 +56,8 @@ class Listing(Base):
         onupdate=datetime.utcnow,
     )
 
-    # Relationships
-    axie: Mapped["Axie"] = relationship("Axie", back_populates="listings")
+    # Note: Relationship to Axie removed - axie.axies table doesn't exist in production
+    # Using denormalized class_ and breed_count columns instead
 
     __table_args__ = (
         Index("idx_listings_axie", "axie_id"),
