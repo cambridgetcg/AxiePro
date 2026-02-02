@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+# Note: selectinload removed - Axie.listings relationship no longer exists
 
 from src.models import Axie, Listing, AxieClass, get_db
 from src.utils.gene_parser import GeneParser
@@ -61,11 +61,10 @@ async def search_axies(
     Returns paginated results with optional filters for class, purity,
     breed count, parts, and price range.
     """
-    # Build base query with eager loading to prevent N+1 queries
+    # Build base query
     # Note: Parts data is denormalized in axies.parts_json, not in separate tables
-    query = select(Axie).options(
-        selectinload(Axie.listings),
-    )
+    # Note: Listings relationship removed - query listings separately if needed
+    query = select(Axie)
 
     # Apply class filter
     if class_:
@@ -168,10 +167,8 @@ async def get_axie(
     # Try to get from database first
     # Note: Parts data is denormalized in axies.parts_json, not in separate tables
     # Note: Sales data is in axie.axie_sales, not a relationship on Axie
+    # Note: Listings queried separately since relationship was removed
     query = select(Axie).where(Axie.id == axie_id)
-
-    if include_listing:
-        query = query.options(selectinload(Axie.listings))
 
     result = await db.execute(query)
     axie = result.scalar_one_or_none()
@@ -181,10 +178,14 @@ async def get_axie(
         data = axie.to_dict()
 
         if include_listing:
-            active_listing = next(
-                (l for l in axie.listings if l.status == "active"),
-                None
+            # Query listing separately (relationship removed from model)
+            listing_result = await db.execute(
+                select(Listing).where(
+                    Listing.axie_id == axie_id,
+                    Listing.status == "active"
+                ).limit(1)
             )
+            active_listing = listing_result.scalar_one_or_none()
             if active_listing:
                 data["listing"] = {
                     "price_eth": float(active_listing.price_eth),
