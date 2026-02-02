@@ -129,33 +129,41 @@ class SalesAggregatorService:
         # Query database
         since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
+        # Note: Sale model now maps to axie.axie_sales with block_timestamp column
         query = (
             select(Sale, Axie)
             .outerjoin(Axie, Sale.axie_id == Axie.id)
-            .where(Sale.sold_at >= since)
-            .order_by(desc(Sale.sold_at))
+            .where(Sale.block_timestamp >= since)
+            .order_by(desc(Sale.block_timestamp))
             .limit(limit)
         )
 
         if axie_class:
-            query = query.where(Axie.class_ == axie_class.lower())
+            # Sale.class_ is denormalized in axie_sales table
+            query = query.where(Sale.class_ == axie_class.capitalize())
 
         result = await self.db.execute(query)
         rows = result.all()
 
         sales = []
         for sale, axie in rows:
+            # Prefer denormalized class from sale, fall back to axie relationship
+            sale_class = sale.class_ if sale.class_ else (
+                axie.class_.value if axie and hasattr(axie.class_, 'value') else (
+                    str(axie.class_) if axie else 'unknown'
+                )
+            )
             sales.append(RecentSaleData(
                 id=sale.id,
                 axie_id=sale.axie_id or 0,
-                class_=axie.class_.value if axie and hasattr(axie.class_, 'value') else (str(axie.class_) if axie else 'unknown'),
-                price_eth=float(sale.price_eth),
+                class_=sale_class,
+                price_eth=float(sale.price_token),  # price_token is ETH/RON amount
                 price_usd=float(sale.price_usd) if sale.price_usd else None,
-                seller_address=sale.seller_address,
-                buyer_address=sale.buyer_address,
+                seller_address=sale.seller,
+                buyer_address=sale.buyer,
                 tx_hash=sale.tx_hash,
-                sold_at=sale.sold_at.isoformat() if sale.sold_at else '',
-                marketplace=sale.marketplace or 'official',
+                sold_at=sale.block_timestamp.isoformat() if sale.block_timestamp else '',
+                marketplace='official',
             ))
 
         # Cache results
@@ -194,13 +202,13 @@ class SalesAggregatorService:
         # Main aggregation query
         query = select(
             func.count(Sale.id).label("total_sales"),
-            func.coalesce(func.sum(Sale.price_eth), 0).label("total_volume"),
-            func.coalesce(func.avg(Sale.price_eth), 0).label("avg_price"),
-            func.min(Sale.price_eth).label("min_price"),
-            func.max(Sale.price_eth).label("max_price"),
-            func.count(func.distinct(Sale.buyer_address)).label("unique_buyers"),
-            func.count(func.distinct(Sale.seller_address)).label("unique_sellers"),
-        ).where(Sale.sold_at >= since)
+            func.coalesce(func.sum(Sale.price_token), 0).label("total_volume"),
+            func.coalesce(func.avg(Sale.price_token), 0).label("avg_price"),
+            func.min(Sale.price_token).label("min_price"),
+            func.max(Sale.price_token).label("max_price"),
+            func.count(func.distinct(Sale.buyer)).label("unique_buyers"),
+            func.count(func.distinct(Sale.seller)).label("unique_sellers"),
+        ).where(Sale.block_timestamp >= since)
 
         if axie_class:
             query = query.join(Axie, Sale.axie_id == Axie.id).where(
@@ -242,9 +250,9 @@ class SalesAggregatorService:
     ) -> Optional[Decimal]:
         """Compute median sale price for the period."""
         query = (
-            select(Sale.price_eth)
-            .where(Sale.sold_at >= since)
-            .order_by(Sale.price_eth)
+            select(Sale.price_token)
+            .where(Sale.block_timestamp >= since)
+            .order_by(Sale.price_token)
         )
 
         if axie_class:
@@ -272,11 +280,11 @@ class SalesAggregatorService:
             select(
                 Axie.class_,
                 func.count(Sale.id).label("sales_count"),
-                func.coalesce(func.sum(Sale.price_eth), 0).label("volume"),
-                func.coalesce(func.avg(Sale.price_eth), 0).label("avg_price"),
+                func.coalesce(func.sum(Sale.price_token), 0).label("volume"),
+                func.coalesce(func.avg(Sale.price_token), 0).label("avg_price"),
             )
             .join(Axie, Sale.axie_id == Axie.id)
-            .where(Sale.sold_at >= since)
+            .where(Sale.block_timestamp >= since)
             .group_by(Axie.class_)
         )
 
@@ -327,12 +335,12 @@ class SalesAggregatorService:
         stats_query = (
             select(
                 func.count(Sale.id).label("total_sales"),
-                func.coalesce(func.sum(Sale.price_eth), 0).label("total_volume"),
-                func.coalesce(func.avg(Sale.price_eth), 0).label("avg_price"),
+                func.coalesce(func.sum(Sale.price_token), 0).label("total_volume"),
+                func.coalesce(func.avg(Sale.price_token), 0).label("avg_price"),
             )
             .join(Axie, Sale.axie_id == Axie.id)
             .where(and_(
-                Sale.sold_at >= since,
+                Sale.block_timestamp >= since,
                 Axie.class_ == axie_class.lower(),
             ))
         )
@@ -389,14 +397,14 @@ class SalesAggregatorService:
         # PostgreSQL-specific: use date_trunc for hourly grouping
         query = (
             select(
-                func.date_trunc('hour', Sale.sold_at).label("hour"),
+                func.date_trunc('hour', Sale.block_timestamp).label("hour"),
                 func.count(Sale.id).label("sales_count"),
-                func.coalesce(func.sum(Sale.price_eth), 0).label("volume"),
-                func.coalesce(func.avg(Sale.price_eth), 0).label("avg_price"),
+                func.coalesce(func.sum(Sale.price_token), 0).label("volume"),
+                func.coalesce(func.avg(Sale.price_token), 0).label("avg_price"),
             )
-            .where(Sale.sold_at >= since)
-            .group_by(func.date_trunc('hour', Sale.sold_at))
-            .order_by(func.date_trunc('hour', Sale.sold_at))
+            .where(Sale.block_timestamp >= since)
+            .group_by(func.date_trunc('hour', Sale.block_timestamp))
+            .order_by(func.date_trunc('hour', Sale.block_timestamp))
         )
 
         result = await self.db.execute(query)

@@ -35,7 +35,7 @@ class Listing(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     axie_id: Mapped[int] = mapped_column(
         BigInteger,
-        ForeignKey("axies.id", ondelete="CASCADE"),
+        ForeignKey("axie.axies.id", ondelete="CASCADE"),
         nullable=False,
     )
     seller_address: Mapped[str] = mapped_column(String(42), nullable=False, index=True)
@@ -70,43 +70,80 @@ class Listing(Base):
         Index("idx_listings_price", "price_eth"),
         Index("idx_listings_status_price", "status", "price_eth"),
         Index("idx_listings_class_status_price", "class_", "status", "price_eth"),
+        {"schema": "axie"},
     )
 
 
 class Sale(Base):
-    """Historical sales records."""
+    """
+    Historical sales records from Lambda ingestion.
 
-    __tablename__ = "sales"
+    Maps to axie.axie_sales table populated by sales_ingestion Lambda.
+    """
+
+    __tablename__ = "axie_sales"
+    __table_args__ = (
+        Index("idx_axie_sales_axie", "axie_id"),
+        Index("idx_axie_sales_timestamp", "block_timestamp"),
+        Index("idx_axie_sales_seller", "seller"),
+        Index("idx_axie_sales_buyer", "buyer"),
+        {"schema": "axie"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    axie_id: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("axies.id", ondelete="SET NULL"),
-    )
-    seller_address: Mapped[str] = mapped_column(String(42), nullable=False)
-    buyer_address: Mapped[str] = mapped_column(String(42), nullable=False)
+    axie_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    tx_hash: Mapped[str] = mapped_column(String(66), nullable=False)
+    block_number: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    block_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # Pricing
-    price_eth: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    price_token: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
+    token_type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'ETH' or 'RON'
     price_usd: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+    eth_usd_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 2))
+    ron_usd_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 8))
 
-    # Transaction data
-    tx_hash: Mapped[str] = mapped_column(String(66), unique=True, nullable=False)
-    sold_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
-    marketplace: Mapped[str] = mapped_column(String(50), default="official")
+    # Participants
+    seller: Mapped[str] = mapped_column(String(42), nullable=False)
+    buyer: Mapped[str] = mapped_column(String(42), nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Axie metadata (denormalized for performance)
+    class_: Mapped[Optional[str]] = mapped_column("class", String(20))
+    breed_count: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    price_raw: Mapped[Optional[str]] = mapped_column(String(78))
 
-    # Relationships
-    axie: Mapped[Optional["Axie"]] = relationship("Axie", back_populates="sales")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
-    __table_args__ = (
-        Index("idx_sales_axie", "axie_id"),
-        Index("idx_sales_sold_at", "sold_at"),
-        Index("idx_sales_seller", "seller_address"),
-        Index("idx_sales_buyer", "buyer_address"),
-        Index("idx_sales_price", "price_eth"),
-    )
+    # Compatibility properties for existing code
+    @property
+    def price_eth(self) -> Decimal:
+        """Return price in ETH equivalent."""
+        if self.token_type == 'ETH':
+            return self.price_token
+        elif self.token_type == 'RON' and self.ron_usd_rate and self.eth_usd_rate:
+            # Convert RON to ETH: RON * RON_USD / ETH_USD
+            return self.price_token * self.ron_usd_rate / self.eth_usd_rate
+        return self.price_token  # Fallback
+
+    @property
+    def sold_at(self) -> datetime:
+        """Alias for block_timestamp for compatibility."""
+        return self.block_timestamp
+
+    @property
+    def seller_address(self) -> str:
+        """Alias for seller for compatibility."""
+        return self.seller
+
+    @property
+    def buyer_address(self) -> str:
+        """Alias for buyer for compatibility."""
+        return self.buyer
+
+    @property
+    def marketplace(self) -> str:
+        """Default marketplace."""
+        return "official"
 
 
 class PriceHistory(Base):
@@ -152,6 +189,7 @@ class PriceSnapshot(Base):
     """
 
     __tablename__ = "price_snapshots"
+    __table_args__ = {"schema": "axie"}
 
     # Composite primary key for time-series
     time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
@@ -165,9 +203,6 @@ class PriceSnapshot(Base):
     # Volume and count metrics
     volume: Mapped[int] = mapped_column(Integer, default=0)
     listings_count: Mapped[int] = mapped_column(Integer, default=0)
-
-    # Note: Table is partitioned, so we don't define __table_args__ indexes here
-    # They're created in the migration
 
 
 class MarketStats(Base):
