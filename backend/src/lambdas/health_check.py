@@ -21,18 +21,18 @@ from src.lambdas.common import (
 )
 
 
-# Freshness thresholds (in minutes)
+# Freshness thresholds (in minutes) - use schema-qualified names
 FRESHNESS_THRESHOLDS = {
-    "listings": 15,      # Listings should be updated every 5 minutes
-    "sales": 60,         # Sales should be updated every 30 minutes
-    "price_snapshots": 30,  # Price snapshots every 15 minutes
+    "axie.listings": 15,          # Listings should be updated every 5 minutes
+    "axie.axie_sales": 60,        # Sales should be updated every 30 minutes
+    "axie.price_snapshots": 30,   # Price snapshots every 15 minutes
 }
 
-# Minimum expected record counts (sanity check)
+# Minimum expected record counts (sanity check) - use schema-qualified names
 MIN_EXPECTED_COUNTS = {
-    "listings": 100,     # Should have at least 100 active listings
-    "sales": 10,         # Should have at least 10 sales in last 24h
-    "price_snapshots": 5,  # Should have at least 5 snapshots in last hour
+    "axie.listings": 100,         # Should have at least 100 active listings
+    "axie.axie_sales": 10,        # Should have at least 10 sales in last 24h
+    "axie.price_snapshots": 5,    # Should have at least 5 snapshots in last hour
 }
 
 
@@ -94,9 +94,9 @@ def check_record_counts(conn, table: str, min_expected: int, time_window_hours: 
 
     # Map tables to their timestamp columns for filtering
     timestamp_columns = {
-        "listings": "updated_at",
-        "sales": "sold_at",
-        "price_snapshots": "time",
+        "axie.listings": "updated_at",
+        "axie.axie_sales": "block_timestamp",
+        "axie.price_snapshots": "time",
     }
 
     timestamp_col = timestamp_columns.get(table, "created_at")
@@ -134,7 +134,7 @@ def check_active_listings_by_class(conn) -> Dict[str, Any]:
     with conn.cursor() as cur:
         cur.execute("""
             SELECT class_, COUNT(*) as count
-            FROM listings
+            FROM axie.listings
             WHERE status = 'active'
             GROUP BY class_
             ORDER BY count DESC
@@ -186,10 +186,11 @@ def handler(event, context):
 
     try:
         # Check freshness of each table
+        # Use schema-qualified names to match actual table locations
         freshness_checks = [
-            ("listings", "updated_at"),
-            ("sales", "sold_at"),
-            ("price_snapshots", "time"),
+            ("axie.listings", "updated_at"),
+            ("axie.axie_sales", "block_timestamp"),
+            ("axie.price_snapshots", "time"),
         ]
 
         for table, timestamp_col in freshness_checks:
