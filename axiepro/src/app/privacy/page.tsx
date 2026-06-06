@@ -4,7 +4,7 @@ export default function PrivacyPage() {
   return (
     <div className="container mx-auto px-4 py-12 max-w-4xl">
       <h1 className="text-4xl font-bold mb-2">Privacy Policy</h1>
-      <p className="text-muted-foreground mb-8">Last updated: January 31, 2026</p>
+      <p className="text-muted-foreground mb-8">Last updated: June 4, 2026</p>
 
       <Card>
         <CardContent className="prose prose-invert max-w-none p-8 space-y-8">
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
             </p>
             <div className="mt-4 p-4 bg-green-900/20 border border-green-800/30 rounded">
               <p className="text-green-200 leading-relaxed">
-                🔒 <strong>Key Point:</strong> During beta, AxiePro operates as a <strong>read-only analytics tool</strong>. We do NOT connect to your wallet, we do NOT ask for personal information, and we do NOT store sensitive data. This policy describes what little data we do collect.
+                🔒 <strong>Key Point:</strong> AxiePro is a <strong>read-only, non-custodial analytics tool</strong>. Wallet connection is optional — used only to read your public holdings and verify a signed ownership message. We never ask for private keys or seed phrases, we never move your funds, and we don&apos;t ask for personal information. This policy describes what little data we do collect.
               </p>
             </div>
           </section>
@@ -87,11 +87,11 @@ export default function PrivacyPage() {
               </p>
 
               <p className="text-gray-300 leading-relaxed mt-3">
-                <strong>NO wallet connection:</strong>
+                <strong>Optional, read-only wallet connection:</strong>
               </p>
               <ul className="list-disc list-inside text-gray-300 space-y-1">
-                <li>We don&apos;t ask you to connect your wallet (no MetaMask, no Ronin Wallet)</li>
-                <li>We don&apos;t see your wallet address unless it appears in public listings</li>
+                <li>Connecting a Ronin wallet is optional — only needed for portfolio features</li>
+                <li>If connected, we read your public holdings and verify a signed ownership message</li>
                 <li>We NEVER ask for private keys or seed phrases</li>
                 <li>We cannot access your funds or execute transactions</li>
               </ul>
@@ -245,8 +245,8 @@ export default function PrivacyPage() {
               We may share non-identifiable, aggregated statistics publicly:
             </p>
             <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-1">
-              <li>&quot;AxiePro users viewed 10,000 Axies this week&quot;</li>
-              <li>&quot;Average floor price dropped 15% across all classes&quot;</li>
+              <li>&quot;Average floor price dropped 15% across all classes this week&quot;</li>
+              <li>&quot;Beast and Plant were the most-traded classes this month&quot;</li>
             </ul>
             <p className="text-muted-foreground leading-relaxed mt-2">
               This data cannot be traced back to individual users.
@@ -400,7 +400,7 @@ export default function PrivacyPage() {
               AxiePro is built with privacy in mind from the ground up:
             </p>
             <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-1">
-              <li>✅ No wallet connection = Can&apos;t access your funds</li>
+              <li>✅ Non-custodial = we can never access or move your funds</li>
               <li>✅ No personal data collection = Nothing to leak or sell</li>
               <li>✅ Read-only analytics = Minimal privacy footprint</li>
               <li>✅ Public data only = Analyzing what&apos;s already public</li>

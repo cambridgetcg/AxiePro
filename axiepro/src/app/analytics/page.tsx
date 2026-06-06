@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { RefreshCw, BarChart3, Activity, TrendingUp } from 'lucide-react';
 import {
   MarketOverviewStats,
@@ -18,11 +18,12 @@ type TimeRange = '24h' | '7d' | '30d';
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const queryClient = useQueryClient();
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    // Trigger re-fetch by changing state - React Query will handle the rest
-    setTimeout(() => setIsRefreshing(false), 1000);
+    await queryClient.invalidateQueries();
+    setIsRefreshing(false);
   };
 
   return (
@@ -78,9 +79,6 @@ export default function AnalyticsPage() {
           <div className="flex items-center gap-2 mb-4">
             <Activity className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">Market Pulse</h2>
-            <Badge variant="outline" className="text-xs">
-              Live
-            </Badge>
           </div>
           <MarketPulse />
         </section>
