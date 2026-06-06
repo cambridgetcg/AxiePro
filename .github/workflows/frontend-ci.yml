@@ -1,0 +1,27 @@
+name: Frontend CI
+
+# Auto-check the frontend on every change so a broken build never reaches
+# production. Vercel auto-deploys main on its own; this is the quality gate.
+on:
+  push:
+    branches: [main]
+    paths: ['axiepro/**']
+  pull_request:
+    paths: ['axiepro/**']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: axiepro
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: axiepro/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
