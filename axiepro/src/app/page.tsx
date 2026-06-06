@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,10 +26,11 @@ import { useMetaShifts } from "@/hooks/use-meta";
 const features = [
   {
     icon: Search,
-    title: "Advanced Explorer",
+    title: "Axie Explorer",
     description:
-      "Filter Axies by class, purity, parts, genes, and price. Find exactly what you're looking for.",
+      "Look up any Axie by ID to see its traits and valuation. Full class/parts/gene filtering is coming soon.",
     href: "/explorer",
+    comingSoon: true,
   },
   {
     icon: BarChart3,
@@ -37,10 +41,11 @@ const features = [
   },
   {
     icon: Dna,
-    title: "Breeding Simulator",
+    title: "Breeding ROI",
     description:
-      "Predict offspring outcomes with gene probability calculations. Maximize your breeding ROI.",
+      "Breed-vs-buy with gene probabilities and live costs. Coming soon.",
     href: "/breeding",
+    comingSoon: true,
   },
   {
     icon: Target,
@@ -68,6 +73,16 @@ const features = [
 ];
 
 export default function HomePage() {
+  const router = useRouter();
+  const [search, setSearch] = useState("");
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    // accept a raw ID or a marketplace link — grab the first long digit run
+    const match = search.trim().match(/(\d{3,})/);
+    if (match) router.push(`/explorer?id=${match[1]}`);
+  };
+
   // Fetch meta shifts for alert banner
   const { data: metaShiftsData, isLoading: metaLoading } = useMetaShifts({
     minConfidence: 70,
@@ -83,28 +98,41 @@ export default function HomePage() {
           <div className="max-w-3xl mx-auto text-center">
             <Badge variant="secondary" className="mb-4">
               <Activity className="h-3 w-3 mr-1" />
-              Live Market Data
+              Beta
             </Badge>
             <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent">
-              Dominate the Axie Market
+              See what any Axie is really worth
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Professional-grade analytics, breeding tools, and deal detection for
-              serious Axie Infinity traders. Find undervalued assets and optimize
-              your strategy.
+              Paste an Axie ID or marketplace link to get its estimated value — and whether
+              it&apos;s a deal. Free, read-only analytics for Axie Infinity traders.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/explorer">
-                <Button size="lg" className="gap-2">
-                  Start Exploring
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
+            <form
+              onSubmit={handleSearch}
+              className="flex flex-col sm:flex-row gap-2 max-w-xl mx-auto mb-4"
+            >
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Enter an Axie ID (e.g. 12345)"
+                  aria-label="Axie ID or marketplace link"
+                  className="pl-11 h-12 text-base"
+                />
+              </div>
+              <Button type="submit" size="lg" className="gap-2 h-12">
+                Value it
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </form>
+            <div className="flex flex-wrap gap-2 justify-center text-sm text-muted-foreground">
+              <Link href="/deals" className="hover:text-foreground underline-offset-4 hover:underline">
+                or browse today&apos;s deals
               </Link>
-              <Link href="/analytics">
-                <Button size="lg" variant="outline" className="gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  View Analytics
-                </Button>
+              <span>·</span>
+              <Link href="/analytics" className="hover:text-foreground underline-offset-4 hover:underline">
+                see market analytics
               </Link>
             </div>
           </div>
@@ -154,6 +182,11 @@ export default function HomePage() {
                       {feature.isNew && (
                         <Badge className="bg-green-500/10 text-green-500 border-green-500/50">
                           New
+                        </Badge>
+                      )}
+                      {feature.comingSoon && (
+                        <Badge variant="outline" className="text-muted-foreground">
+                          Soon
                         </Badge>
                       )}
                     </div>
@@ -284,8 +317,8 @@ export default function HomePage() {
                 Ready to Level Up Your Trading?
               </h2>
               <p className="text-white/80 mb-6 max-w-xl mx-auto">
-                Join thousands of traders using AxiePro to find better deals, make
-                smarter breeding decisions, and track market trends.
+                Free, read-only analytics for Axie traders — find undervalued deals
+                and track the market. Non-custodial. Informational, not financial advice.
               </p>
               <Link href="/explorer">
                 <Button size="lg" variant="secondary" className="gap-2">

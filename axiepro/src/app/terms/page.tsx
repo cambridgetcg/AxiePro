@@ -4,7 +4,7 @@ export default function TermsPage() {
   return (
     <div className="container mx-auto px-4 py-12 max-w-4xl">
       <h1 className="text-4xl font-bold mb-2">Terms of Service</h1>
-      <p className="text-muted-foreground mb-8">Last updated: January 31, 2026</p>
+      <p className="text-muted-foreground mb-8">Last updated: June 4, 2026</p>
 
       <Card>
         <CardContent className="prose prose-invert max-w-none p-8 space-y-8">
@@ -46,18 +46,29 @@ export default function TermsPage() {
             </p>
             <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-1">
               <li>Axie marketplace data and price tracking</li>
-              <li>Real-time deal detection and alerts</li>
-              <li>Breeding simulation and probability calculations</li>
-              <li>Market depth and liquidity analysis</li>
               <li>Historical sales trend analysis</li>
+              <li>Per-Axie trait-based valuation estimates</li>
             </ul>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              Planned / in development (not yet available):
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-1">
+              <li>Real-time deal detection and alerts</li>
+              <li>Breeding simulation, probability, and ROI</li>
+            </ul>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              <strong>Wallet connection is optional.</strong> If you connect a Ronin wallet, we use it
+              only to read your public holdings and to verify a signed message proving ownership (so you
+              can edit your own cost basis). We never request private keys or seed phrases, and we can
+              never move your funds.
+            </p>
             <p className="text-muted-foreground leading-relaxed mt-4">
               <strong>What we DON&apos;T do:</strong>
             </p>
             <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-1">
-              <li>❌ Connect to your wallet (no MetaMask, no Ronin Wallet)</li>
               <li>❌ Execute transactions or trades on your behalf</li>
-              <li>❌ Store your private keys or seed phrases</li>
+              <li>❌ Ask for or store your private keys or seed phrases</li>
+              <li>❌ Move, hold, or access your funds in any way</li>
               <li>❌ Provide personalized investment advice</li>
             </ul>
           </section>

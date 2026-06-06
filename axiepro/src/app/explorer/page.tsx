@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useValuation } from '@/hooks';
 import {
   Card,
@@ -18,9 +19,22 @@ import {
 } from '@/components/valuation';
 import { Search, Loader2 } from 'lucide-react';
 
-export default function ExplorerPage() {
+function ExplorerContent() {
+  const searchParams = useSearchParams();
   const [searchInput, setSearchInput] = useState('');
   const [searchedId, setSearchedId] = useState<number | null>(null);
+
+  // Deep link: /explorer?id=12345 (e.g. from the homepage search) auto-looks-up.
+  useEffect(() => {
+    const idParam = searchParams.get('id');
+    if (idParam) {
+      const id = parseInt(idParam, 10);
+      if (!isNaN(id) && id > 0) {
+        setSearchInput(idParam);
+        setSearchedId(id);
+      }
+    }
+  }, [searchParams]);
 
   const {
     data: valuation,
@@ -139,5 +153,17 @@ export default function ExplorerPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function ExplorerPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto px-4 py-8 text-muted-foreground">Loading…</div>
+      }
+    >
+      <ExplorerContent />
+    </Suspense>
   );
 }

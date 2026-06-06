@@ -8,13 +8,6 @@ from .deals import DetectedDeal, DealStatus
 from .wallet import Wallet, WalletHolding, TokenType, WalletTokenBalance
 from .breeding import BreedingPair, Breed
 from .auth import AuthChallenge
-from .instrumentation import (
-    InstrumentationEvent,
-    ValueMetric,
-    PurposeAlignmentSnapshot,
-    EventType,
-    Feature,
-)
 
 __all__ = [
     # Database
@@ -47,15 +40,9 @@ __all__ = [
     "Breed",
     # Auth models
     "AuthChallenge",
-    # Instrumentation models
-    "InstrumentationEvent",
-    "ValueMetric",
-    "PurposeAlignmentSnapshot",
     # Enums
     "AxieClass",
     "PartType",
     "GeneType",
-    "EventType",
-    "Feature",
     "TokenType",
 ]
