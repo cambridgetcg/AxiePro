@@ -16,9 +16,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AxiePro - Advanced Axie Infinity Market Analytics",
+  metadataBase: new URL("https://axiepro.io"),
+  title: {
+    default: "AxiePro — Axie Infinity deal-finder & valuation",
+    template: "%s · AxiePro",
+  },
   description:
-    "Professional market analytics, breeding tools, and deal detection for Axie Infinity traders. Track prices, find undervalued Axies, and optimize your breeding strategy.",
+    "Read-only, non-custodial analytics for Axie Infinity traders. Track sales, value Axies by traits, and find undervalued deals on the Ronin chain. Informational, not financial advice.",
   keywords: [
     "Axie Infinity",
     "Axie",
@@ -27,22 +31,23 @@ export const metadata: Metadata = {
     "breeding",
     "market",
     "analytics",
-    "crypto gaming",
+    "deal finder",
+    "valuation",
   ],
   authors: [{ name: "AxiePro" }],
   openGraph: {
-    title: "AxiePro - Advanced Axie Infinity Market Analytics",
+    title: "AxiePro — Axie Infinity deal-finder & valuation",
     description:
-      "Professional market analytics, breeding tools, and deal detection for Axie Infinity traders.",
+      "Read-only analytics for Axie traders — find undervalued deals and value Axies by traits.",
     url: "https://axiepro.io",
     siteName: "AxiePro",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AxiePro - Advanced Axie Infinity Market Analytics",
+    title: "AxiePro — Axie Infinity deal-finder & valuation",
     description:
-      "Professional market analytics, breeding tools, and deal detection for Axie Infinity traders.",
+      "Read-only analytics for Axie traders — find undervalued deals and value Axies by traits.",
   },
 };
 

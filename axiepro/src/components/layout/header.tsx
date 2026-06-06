@@ -23,10 +23,10 @@ const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/explorer", label: "Explorer", icon: Search },
   { href: "/deals", label: "Deals", icon: Target },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/meta", label: "Meta", icon: Sparkles, isNew: true },
   { href: "/portfolio", label: "Portfolio", icon: PiggyBank, isNew: true },
-  { href: "/breeding", label: "Breeding", icon: Dna },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/breeding", label: "Breeding", icon: Dna, comingSoon: true },
 ];
 
 export function Header() {
@@ -59,6 +59,11 @@ export function Header() {
                 {item.isNew && (
                   <Badge className="absolute -top-1 -right-1 text-[8px] px-1 py-0 h-4 bg-green-500">
                     New
+                  </Badge>
+                )}
+                {item.comingSoon && (
+                  <Badge variant="outline" className="absolute -top-1 -right-1 text-[8px] px-1 py-0 h-4">
+                    Soon
                   </Badge>
                 )}
               </Button>
@@ -101,6 +106,11 @@ export function Header() {
                       {item.isNew && (
                         <Badge className="ml-auto text-[8px] px-1 py-0 h-4 bg-green-500">
                           New
+                        </Badge>
+                      )}
+                      {item.comingSoon && (
+                        <Badge variant="outline" className="ml-auto text-[8px] px-1 py-0 h-4">
+                          Soon
                         </Badge>
                       )}
                     </Button>

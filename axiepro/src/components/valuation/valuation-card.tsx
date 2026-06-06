@@ -110,7 +110,7 @@ export function ValuationCard({
         {/* Valuation Section */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Fair Value</p>
+            <p className="text-xs text-muted-foreground mb-1">Estimated Value</p>
             <PriceDisplay ethValue={fairValue} size="lg" />
             {valuation.valuation.confidence_lower_eth &&
               valuation.valuation.confidence_upper_eth && (
@@ -119,6 +119,9 @@ export function ValuationCard({
                   {valuation.valuation.confidence_upper_eth.toFixed(4)} ETH
                 </p>
               )}
+            <p className="text-[10px] text-muted-foreground/70 mt-1">
+              Model estimate — rougher when trait data is limited. Not financial advice.
+            </p>
           </div>
 
           <div>

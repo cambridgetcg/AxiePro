@@ -1,0 +1,25 @@
+# AxiePro
+
+> Read-only, non-custodial analytics for Axie Infinity traders on the Ronin chain.
+> Track sales, value Axies by traits and genes, and find undervalued deals.
+> We never touch funds. Informational, not financial advice. Status: beta.
+
+## Pages
+- [Home](https://axiepro.io/): market pulse and overview.
+- [Explorer](https://axiepro.io/explorer): look up any Axie by ID to see its traits and a valuation estimate. Full class/parts/gene filtering is coming soon.
+- [Deals](https://axiepro.io/deals): Axie listings priced below their estimated value, ranked.
+- [Analytics](https://axiepro.io/analytics): market trends, floor prices, and recent sales.
+- [Meta](https://axiepro.io/meta): rising and falling trait trends.
+- [Portfolio](https://axiepro.io/portfolio): your wallet holdings and profit/loss. Uses an optional, read-only Ronin wallet connection.
+- [Breeding](https://axiepro.io/breeding): breed-vs-buy ROI. Coming soon.
+- [Terms](https://axiepro.io/terms)
+- [Privacy](https://axiepro.io/privacy)
+
+## API
+- Base URL: https://api.axiepro.io/api/v1
+- OpenAPI docs: https://api.axiepro.io/api/v1/docs
+- Read-only. Public market data is free.
+
+## Data
+- Sources: Ronin chain and Sky Mavis. Data may be delayed.
+- Valuations are model estimates, not guarantees, and are not financial advice.
