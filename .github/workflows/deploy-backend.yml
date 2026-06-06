@@ -1,11 +1,9 @@
 name: Deploy Backend to App Runner
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-  workflow_dispatch:  # Allow manual trigger
+  # Auto-deploy on push to main is DISABLED until the backend is revived and the
+  # leaked API keys are rotated (see STATE.md). Until then, deploy manually only.
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
