@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+export const dynamic = "force-static";
+
 // Machine-readable map of the site, for search engines and agents.
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://axiepro.io";

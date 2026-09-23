@@ -1,5 +1,7 @@
 # Beta User Recruitment Plan (W2)
 
+> Historical exploration. All acquisition, conversion, revenue, pricing and growth targets in this document are retired. They are not requirements or an active launch plan; see [the current orientation](../PRICING.md). Research and factual technical evidence remain available.
+
 **Target**: 10 serious Axie traders for beta testing
 **Timeline**: Post when W1 completes (metadata coverage >80%)
 **Incentive**: Lifetime 50% discount when Premium launches

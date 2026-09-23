@@ -2,7 +2,14 @@
 
 A blockchain explorer and analytics platform for the Ronin network, focused on Axie Infinity trading analysis, trait evaluation, and breeding strategy optimization.
 
-## Project Goals
+## Orientation
+
+Pure understanding, with no revenue, KPI, acquisition or conversion requirement.
+The former paid tiers and metered API proposal are retired; see [PRICING.md](PRICING.md).
+Research can remain unfinished or change direction. Historical commercial targets
+and launch plans do not impose obligations on this work.
+
+## Optional exploration
 
 1. **Trading Analysis** - Track Axie sales, identify undervalued assets, spot market trends
 2. **Trait Valuation** - Understand which body parts, genes, and combinations command premium prices

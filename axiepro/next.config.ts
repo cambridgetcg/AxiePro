@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
+// Pages keeps an explicit static-export mode; Vercel retains its normal build.
+const staticExport = process.env.AXIEPRO_STATIC_EXPORT === "1";
+
 const nextConfig: NextConfig = {
+  ...(staticExport ? { output: "export" as const } : {}),
   images: {
     unoptimized: true,
   },
@@ -24,7 +28,7 @@ const nextConfig: NextConfig = {
 
   // Proxy API requests to backend during local development
   // This avoids CORS issues when frontend and backend run on different ports
-  async rewrites() {
+  rewrites: staticExport ? undefined : async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
     // Only proxy in development when using localhost backend

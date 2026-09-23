@@ -211,7 +211,6 @@ export default function TermsPage() {
               <li>Adding, removing, or changing features</li>
               <li>Modifying our valuation models or algorithms</li>
               <li>Adjusting data refresh rates or coverage</li>
-              <li>Ending the beta and launching a paid version</li>
               <li>Discontinuing the service entirely</li>
             </ul>
             <p className="text-muted-foreground leading-relaxed mt-4">
@@ -225,7 +224,7 @@ export default function TermsPage() {
               We may terminate or suspend access to the Service immediately, without prior notice or liability, for any reason, including breach of these Terms. Upon termination, your right to use the Service will immediately cease.
             </p>
             <p className="text-muted-foreground leading-relaxed mt-3">
-              When the beta phase ends, we may transition to a paid service. Beta users will be notified before any charges are applied.
+              New paid plans and checkout are retired. There is no planned transition from this beta to a paid service. Existing records and obligations are not cancelled by this change.
             </p>
           </section>
 

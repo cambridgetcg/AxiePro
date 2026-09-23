@@ -49,3 +49,20 @@ Point the domain at Vercel from your Cloudflare dashboard:
 
 `api.axiepro.io` is down (see `STATE.md`). Reviving it: rotate the leaked keys first, then
 redeploy to App Runner via the existing `.github/workflows/deploy-backend.yml`.
+
+
+## Legacy Cloudflare Pages surface
+
+The `axiepro` Pages project (`axiepro.pages.dev`) was previously published from
+commit `cd25c0c14083c15ccafc6234131fcd19ffaa9a60` under the former `frontend/` path.
+Its source is now `axiepro/`. Build the same maintained app as a static export:
+
+```sh
+cd axiepro
+AXIEPRO_STATIC_EXPORT=1 NEXT_PUBLIC_API_URL=https://api.axiepro.io/api/v1 npm run build
+wrangler pages deploy out --project-name=axiepro --branch=main
+```
+
+Vercel uses the normal build with no export flag. Publishing either frontend does
+not revive, migrate or modify the separate backend. New paid plans and checkout
+are retired; model and portfolio observations remain available for understanding.

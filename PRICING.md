@@ -1,43 +1,9 @@
-# AxiePro — Pricing
+# AxiePro — understanding without a paid plan
 
-The principle: **we don't tax what's already free, we charge fairly for the edge we
-add, and the price is always a fraction of the value we hand back.** Not charity, not
-gouging. Just fair.
+AxiePro has no revenue, conversion, acquisition or KPI requirement. There is no need to make it commercially viable, grow an audience, or justify exploration through profit.
 
-## Tiers
+The former Pro subscription, metered Agent API pricing, margin targets and eventual paid launch are retired. No new paid signup or checkout is planned or offered. This decision does not cancel or rewrite any existing record or obligation.
 
-### Free — the basics are never gated
-Sales history · floor prices · basic per-axie valuation · live listings.
-It's public chain data; gating it would be artificial friction. Free, forever.
+Trait analysis, gene probabilities, historical prices, costs, portfolio records and uncertain value estimates remain subjects for understanding. They are not performance targets or promises of a profitable trade. Development can follow curiosity, adapt, pause or end without a scorecard.
 
-### Pro — ~$10/mo (payable in RON / USDC)
-The edge that actually makes a trader money:
-- **Deal alerts** — pings you the moment a listing drops below fair value
-- **Full fair-value model** — confidence, comparables, and the *why*
-- **Breeding ROI** — breed-vs-buy with live costs
-- **Portfolio P&L** + tax-lot export
-
-One good snipe pays for a year. Cancel anytime. No dark patterns.
-
-### Agent API — metered, cost-honest
-A clean typed feed for agents/bots, priced per call with the cost shown up front
-(charge ≈ cost-to-serve + a fair margin, never a black box). Free monthly quota,
-then a fair per-1k-calls rate.
-
-## The rules underneath
-1. Public data → free. Never tax the commons.
-2. Charge for the intelligence/alerts, not the raw data.
-3. Price ≪ value delivered.
-4. Transparent, cancel-anytime, cost-honest API.
-5. Crypto-native pay — even paying us is low-friction.
-
-## Why fair and profitable aren't in tension
-Cutting our *own* friction — dead infra, re-fetching immutable genes, committed bloat —
-lowers what it costs us to run. Lower cost + higher value lets us price low and fair
-**and** keep a healthy margin. The friction-cut produces both the fairness and the money.
-
-## What keeps us lean (and out of the heavy regimes)
-AxiePro is **read-only and non-custodial** — it never touches anyone's funds. So no
-custody, money-transmission, or MiCA/AML-KYC licensing binds it. The real obligations are
-small: respect data-source API terms, carry an "informational, not financial advice"
-disclaimer, and secure our own keys.
+Older monetisation and recruitment documents are historical research. Their targets, pricing proposals and deadlines have no operating force. Existing signed agreements, if any, would require their own support and settlement; this document does not grant new entitlements or erase them.

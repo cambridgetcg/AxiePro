@@ -1,5 +1,7 @@
 # Implementation Roadmap
 
+> Historical exploration. All acquisition, conversion, revenue, pricing and growth targets in this document are retired. They are not requirements or an active launch plan; see [the current orientation](../PRICING.md). Research and factual technical evidence remain available.
+
 ## Overview
 
 This document outlines the phased implementation plan for the Axie Ronin Explorer. The project is divided into 5 phases, each building upon the previous to deliver incremental value.

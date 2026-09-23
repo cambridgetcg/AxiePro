@@ -1,5 +1,7 @@
 # Axie Ecosystem Value Extraction Strategies
 
+> Historical exploration. All acquisition, conversion, revenue, pricing and growth targets in this document are retired. They are not requirements or an active launch plan; see [the current orientation](../PRICING.md). Research and factual technical evidence remain available.
+
 **Date:** 2025-12-23
 **Objective:** Comprehensive brainstorm of methods to extract value from the Axie marketplace and ecosystem beyond simple buy-low-sell-high trading.
 

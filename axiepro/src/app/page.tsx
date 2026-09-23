@@ -51,14 +51,14 @@ const features = [
     icon: Target,
     title: "Deal Detection",
     description:
-      "Get alerts when undervalued Axies hit the market. Snipe deals with normalized scoring.",
+      "Inspect how a listing compares with uncertain value estimates and their assumptions.",
     href: "/deals",
   },
   {
     icon: Sparkles,
     title: "Meta Shifts",
     description:
-      "Detect emerging trends before they become obvious. Spot rising and falling traits early.",
+      "Explore changes in traits and market observations, including their uncertainty.",
     href: "/meta",
     isNew: true,
   },
@@ -66,7 +66,7 @@ const features = [
     icon: Wallet,
     title: "Portfolio P&L",
     description:
-      "Track unrealized gains, cost basis, and ROI across your holdings. Know your performance.",
+      "Understand existing holdings, cost basis and estimated changes in value.",
     href: "/portfolio",
     isNew: true,
   },
@@ -101,11 +101,11 @@ export default function HomePage() {
               Beta
             </Badge>
             <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent">
-              See what any Axie is really worth
+              Explore Axie traits and value estimates
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Paste an Axie ID or marketplace link to get its estimated value — and whether
-              it&apos;s a deal. Free, read-only analytics for Axie Infinity traders.
+              Explore traits, historical market observations and uncertain value estimates.
+              There are no paid plans, growth targets or pressure to turn understanding into profit.
             </p>
             <form
               onSubmit={handleSearch}
@@ -164,7 +164,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Everything You Need to Win
+              Different ways to understand
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
               Powerful tools designed for traders who take Axie Infinity seriously.
@@ -314,15 +314,15 @@ export default function HomePage() {
           <Card className="gradient-primary text-white">
             <CardContent className="p-8 md:p-12 text-center">
               <h2 className="text-2xl md:text-3xl font-bold mb-4">
-                Ready to Level Up Your Trading?
+                Explore at your own pace
               </h2>
               <p className="text-white/80 mb-6 max-w-xl mx-auto">
-                Free, read-only analytics for Axie traders — find undervalued deals
-                and track the market. Non-custodial. Informational, not financial advice.
+                Read-only tools for exploring Axies and market observations.
+                New paid plans and checkout are retired. Informational, not financial advice.
               </p>
               <Link href="/explorer">
                 <Button size="lg" variant="secondary" className="gap-2">
-                  Get Started Free
+                  Open the explorer
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
