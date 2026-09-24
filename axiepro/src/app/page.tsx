@@ -104,8 +104,7 @@ export default function HomePage() {
               Explore Axie traits and value estimates
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Explore traits, historical market observations and uncertain value estimates.
-              There are no paid plans, growth targets or pressure to turn understanding into profit.
+              Compare traits, historical market observations and uncertain value estimates.
             </p>
             <form
               onSubmit={handleSearch}
@@ -167,7 +166,7 @@ export default function HomePage() {
               Different ways to understand
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Powerful tools designed for traders who take Axie Infinity seriously.
+              Explore the inputs and assumptions behind each estimate.
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -317,8 +316,7 @@ export default function HomePage() {
                 Explore at your own pace
               </h2>
               <p className="text-white/80 mb-6 max-w-xl mx-auto">
-                Read-only tools for exploring Axies and market observations.
-                New paid plans and checkout are retired. Informational, not financial advice.
+                New paid plans and checkout are retired. These tools provide estimates, not financial advice.
               </p>
               <Link href="/explorer">
                 <Button size="lg" variant="secondary" className="gap-2">
