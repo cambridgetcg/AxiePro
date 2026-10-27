@@ -1,0 +1,1037 @@
+{
+ "generator": "artcraft-brand brandkit.py 1.8",
+ "tools": {
+  "vectorcraft-cli": "vectorcraft-cli 0.17.0"
+ },
+ "source_date_epoch": 1793094342,
+ "spec": {
+  "name": "AxiePro",
+  "short_name": "AxiePro",
+  "slug": "axiepro",
+  "lang": "en",
+  "lang_given": true,
+  "url": "https://www.axiepro.io",
+  "description": "Read-only, non-custodial analytics for Axie Infinity traders. Track sales, value Axies by traits, and find undervalued deals on the Ronin chain. Informational, not financial advice.",
+  "colours": {
+   "primary": "#8B5CF6",
+   "accent": "#06B6D4",
+   "neutral": "#8C8E9C"
+  },
+  "ground": {
+   "light": "#F8F8FC",
+   "dark": "#05050D"
+  },
+  "wordmark": {
+   "text": "AxiePro",
+   "font": "Inter",
+   "style": "SemiBold",
+   "tracking": 0,
+   "colour": "#090A13",
+   "colour_dark": "#EDEEF5"
+  },
+  "mark": {
+   "kind": "svg",
+   "path": null,
+   "source": "source/mark-source.svg",
+   "recolour": false,
+   "small_path": null,
+   "small": "source/mark-small.svg",
+   "dark": null
+  },
+  "icon": {
+   "tile": "#0F0F14",
+   "ink": "original",
+   "padding": 0.18,
+   "radius": 0.22,
+   "ink_given": true,
+   "radius_given": true
+  },
+  "og": {
+   "title": "Explore Axie traits and value estimates",
+   "subtitle": "Compare traits, historical market observations and uncertain value estimates.",
+   "theme": "dark",
+   "alt": null
+  },
+  "app": {
+   "display": "browser",
+   "theme": "dark",
+   "color_scheme": "dark"
+  },
+  "pages": []
+ },
+ "colours": {
+  "primary": "#8B5CF6",
+  "on_primary": "#000000",
+  "monogram_solo": "#8B5CF6"
+ },
+ "facts": {
+  "schemes": {
+   "mark": {
+    "mode": "original",
+    "ground": null,
+    "colours": {},
+    "lifted": {},
+    "knockouts": [
+     [
+      "highlight",
+      "a"
+     ]
+    ],
+    "gaps": []
+   },
+   "mark-mono-black": {
+    "mode": "mono",
+    "ground": null,
+    "colours": {},
+    "lifted": {},
+    "knockouts": [
+     [
+      "highlight",
+      "a"
+     ]
+    ],
+    "gaps": []
+   },
+   "mark-mono-white": {
+    "mode": "mono",
+    "ground": null,
+    "colours": {},
+    "lifted": {},
+    "knockouts": [
+     [
+      "highlight",
+      "a"
+     ]
+    ],
+    "gaps": []
+   },
+   "lockup-horizontal": {
+    "mode": "original",
+    "ground": null,
+    "colours": {},
+    "lifted": {},
+    "knockouts": [
+     [
+      "highlight",
+      "a"
+     ]
+    ],
+    "gaps": []
+   },
+   "lockup-horizontal-reversed": {
+    "mode": "mapped",
+    "ground": "#05050D",
+    "colours": {
+     "#66A5E9": "#05050D"
+    },
+    "lifted": {},
+    "knockouts": [
+     [
+      "highlight",
+      "a"
+     ]
+    ],
+    "gaps": []
+   },
+   "lockup-stacked": {
+    "mode": "original",
+    "ground": null,
+    "colours": {},
+    "lifted": {},
+    "knockouts": [
+     [
+      "highlight",
+      "a"
+     ]
+    ],
+    "gaps": []
+   },
+   "lockup-stacked-reversed": {
+    "mode": "mapped",
+    "ground": "#05050D",
+    "colours": {
+     "#66A5E9": "#05050D"
+    },
+    "lifted": {},
+    "knockouts": [
+     [
+      "highlight",
+      "a"
+     ]
+    ],
+    "gaps": []
+   },
+   "tile": {
+    "mode": "mapped",
+    "ground": "#0F0F14",
+    "colours": {
+     "#66A5E9": "#0F0F14"
+    },
+    "lifted": {},
+    "knockouts": [
+     [
+      "highlight",
+      "a"
+     ]
+    ],
+    "gaps": []
+   },
+   "og": {
+    "mode": "mapped",
+    "ground": "#05050D",
+    "colours": {
+     "#66A5E9": "#05050D"
+    },
+    "lifted": {},
+    "knockouts": [
+     [
+      "highlight",
+      "a"
+     ]
+    ],
+    "gaps": []
+   }
+  },
+  "mark": {
+   "size": [
+    214,
+    256
+   ]
+  },
+  "wordmark": {
+   "size": [
+    327,
+    69
+   ],
+   "cap": 64,
+   "colour": "#090A13",
+   "colour_dark": "#EDEEF5"
+  },
+  "lockup-horizontal": {
+   "size": [
+    354,
+    96
+   ],
+   "mark_height": 96,
+   "cap_height": 48.0,
+   "gap": 28.8,
+   "clear_space": 48.0,
+   "shared_baseline": false
+  },
+  "lockup-stacked": {
+   "size": [
+    209,
+    197
+   ],
+   "mark_height": 128,
+   "cap_height": 40.96,
+   "gap": 26.88,
+   "clear_space": 40.96,
+   "shared_baseline": false
+  },
+  "on_ground": {
+   "light": "#F8F8FC",
+   "dark": "#05050D",
+   "scale": 2,
+   "boards": {
+    "light/lockup-horizontal": {
+     "size": [
+      450,
+      192
+     ],
+     "clear_space": 48
+    },
+    "light/lockup-stacked": {
+     "size": [
+      291,
+      279
+     ],
+     "clear_space": 41
+    },
+    "light/wordmark": {
+     "size": [
+      455,
+      197
+     ],
+     "clear_space": 64
+    },
+    "light/mark": {
+     "size": [
+      342,
+      384
+     ],
+     "clear_space": 64
+    },
+    "dark/lockup-horizontal": {
+     "size": [
+      450,
+      192
+     ],
+     "clear_space": 48
+    },
+    "dark/lockup-stacked": {
+     "size": [
+      291,
+      279
+     ],
+     "clear_space": 41
+    },
+    "dark/wordmark": {
+     "size": [
+      455,
+      197
+     ],
+     "clear_space": 64
+    },
+    "dark/mark": {
+     "size": [
+      342,
+      384
+     ],
+     "clear_space": 64
+    }
+   }
+  },
+  "app": {
+   "tile": "#0F0F14",
+   "ink": null,
+   "ink_mode": "original",
+   "ink_brand": false,
+   "ink_default": false,
+   "subset": "all",
+   "remapped": {
+    "#66A5E9": "#0F0F14"
+   },
+   "mark_extent": 0.7
+  },
+  "maskable": {
+   "tile": "#0F0F14",
+   "predicted_radius": 176.1,
+   "safe_radius": 204.8,
+   "mark_extent": 0.554
+  },
+  "favicon": {
+   "small_mark": true,
+   "dark_plan": {},
+   "merged": [],
+   "tile": "#0F0F14",
+   "radius": 0.22,
+   "radius_reason": "",
+   "ink": null,
+   "ink_mode": "original",
+   "colours": [
+    "#06B6D4",
+    "#408FE3",
+    "#8B5CF6"
+   ],
+   "outer_colours": [
+    "#06B6D4",
+    "#408FE3",
+    "#8B5CF6"
+   ],
+   "ground_colours": [],
+   "cuts": {
+    "32": {
+     "label": "small mark",
+     "size": 32,
+     "longest": 26,
+     "box": [
+      5,
+      3,
+      22,
+      26
+     ],
+     "centre": "box",
+     "margins": [
+      5,
+      4,
+      5,
+      3
+     ],
+     "centred": false,
+     "centred_alternative": null,
+     "clear_of_corners": true,
+     "letter_px": null,
+     "letter_basis": null,
+     "letter_min": null,
+     "predicted": {
+      "ink_pixels": 292,
+      "clean_pixels": 242,
+      "crisp": 0.829
+     },
+     "fidelity": {
+      "strokes": 6,
+      "lost_strokes": 0,
+      "collapsed": 0,
+      "where": [],
+      "welded_points": 0,
+      "pockets_filled": [],
+      "specks": []
+     },
+     "reference": {
+      "d": [
+       "M 16 3 L 5 29 L 11.6 29 L 13.8 22.5 L 18.2 22.5 L 20.4 29 L 27 29 Z",
+       "M 10.5 9.5 C 10.5 10.7 9.52 11.67 8.3 11.67 C 7.08 11.67 6.1 10.7 6.1 9.5 C 6.1 8.3 7.08 7.33 8.3 7.33 C 9.52 7.33 10.5 8.3 10.5 9.5 Z",
+       "M 25.9 7.33 C 25.9 8.53 24.92 9.5 23.7 9.5 C 22.48 9.5 21.5 8.53 21.5 7.33 C 21.5 6.14 22.48 5.17 23.7 5.17 C 24.92 5.17 25.9 6.14 25.9 7.33 Z"
+      ],
+      "rules": [
+       "nonzero",
+       "nonzero",
+       "nonzero"
+      ]
+     },
+     "seam": {
+      "d": [
+       "M 16 3 L 5 29 L 11.6 29 L 13.8 22.5 L 18.2 22.5 L 20.4 29 L 27 29 Z",
+       "M 10.5 9.5 C 10.5 10.7 9.52 11.67 8.3 11.67 C 7.08 11.67 6.1 10.7 6.1 9.5 C 6.1 8.3 7.08 7.33 8.3 7.33 C 9.52 7.33 10.5 8.3 10.5 9.5 Z",
+       "M 25.9 7.33 C 25.9 8.53 24.92 9.5 23.7 9.5 C 22.48 9.5 21.5 8.53 21.5 7.33 C 21.5 6.14 22.48 5.17 23.7 5.17 C 24.92 5.17 25.9 6.14 25.9 7.33 Z"
+      ],
+      "rules": [
+       "nonzero",
+       "nonzero",
+       "nonzero"
+      ],
+      "knocked": [],
+      "gap_fronts": []
+     },
+     "extent": 0.812,
+     "considered": [
+      {
+       "label": "small mark",
+       "letter_px": null,
+       "crisp": 0.829,
+       "faithful": true
+      }
+     ],
+     "full": true
+    },
+    "48": {
+     "label": "small mark",
+     "size": 48,
+     "longest": 38,
+     "box": [
+      8,
+      5,
+      32,
+      38
+     ],
+     "centre": "box",
+     "margins": [
+      8,
+      6,
+      8,
+      5
+     ],
+     "centred": false,
+     "centred_alternative": null,
+     "clear_of_corners": true,
+     "letter_px": null,
+     "letter_basis": null,
+     "letter_min": null,
+     "predicted": {
+      "ink_pixels": 606,
+      "clean_pixels": 528,
+      "crisp": 0.871
+     },
+     "fidelity": {
+      "strokes": 7,
+      "lost_strokes": 0,
+      "collapsed": 0,
+      "where": [],
+      "welded_points": 0,
+      "pockets_filled": [],
+      "specks": []
+     },
+     "reference": {
+      "d": [
+       "M 24 5 L 8 43 L 17.6 43 L 20.8 33.5 L 27.2 33.5 L 30.4 43 L 40 43 Z",
+       "M 16 14.5 C 16 16.25 14.57 17.67 12.8 17.67 C 11.03 17.67 9.6 16.25 9.6 14.5 C 9.6 12.75 11.03 11.33 12.8 11.33 C 14.57 11.33 16 12.75 16 14.5 Z",
+       "M 38.4 11.33 C 38.4 13.08 36.97 14.5 35.2 14.5 C 33.43 14.5 32 13.08 32 11.33 C 32 9.58 33.43 8.17 35.2 8.17 C 36.97 8.17 38.4 9.58 38.4 11.33 Z"
+      ],
+      "rules": [
+       "nonzero",
+       "nonzero",
+       "nonzero"
+      ]
+     },
+     "seam": {
+      "d": [
+       "M 24 5 L 8 43 L 17.6 43 L 20.8 33.5 L 27.2 33.5 L 30.4 43 L 40 43 Z",
+       "M 16 14.5 C 16 16.25 14.57 17.67 12.8 17.67 C 11.03 17.67 9.6 16.25 9.6 14.5 C 9.6 12.75 11.03 11.33 12.8 11.33 C 14.57 11.33 16 12.75 16 14.5 Z",
+       "M 38.4 11.33 C 38.4 13.08 36.97 14.5 35.2 14.5 C 33.43 14.5 32 13.08 32 11.33 C 32 9.58 33.43 8.17 35.2 8.17 C 36.97 8.17 38.4 9.58 38.4 11.33 Z"
+      ],
+      "rules": [
+       "nonzero",
+       "nonzero",
+       "nonzero"
+      ],
+      "knocked": [],
+      "gap_fronts": []
+     },
+     "extent": 0.792,
+     "considered": [
+      {
+       "label": "small mark",
+       "letter_px": null,
+       "crisp": 0.871,
+       "faithful": true
+      }
+     ],
+     "full": true
+    },
+    "16": {
+     "label": "small mark",
+     "size": 16,
+     "longest": 12,
+     "box": [
+      3,
+      2,
+      10,
+      12
+     ],
+     "centre": "box",
+     "margins": [
+      3,
+      3,
+      3,
+      2
+     ],
+     "centred": false,
+     "centred_alternative": null,
+     "clear_of_corners": true,
+     "letter_px": null,
+     "letter_basis": null,
+     "letter_min": null,
+     "predicted": {
+      "ink_pixels": 68,
+      "clean_pixels": 42,
+      "crisp": 0.618
+     },
+     "fidelity": {
+      "strokes": 6,
+      "lost_strokes": 0,
+      "collapsed": 0,
+      "where": [],
+      "welded_points": 0,
+      "pockets_filled": [],
+      "specks": []
+     },
+     "reference": {
+      "d": [
+       "M 8 2 L 3 14 L 6 14 L 7 11 L 9 11 L 10 14 L 13 14 Z",
+       "M 5.5 5 C 5.5 5.55 5.05 6 4.5 6 C 3.95 6 3.5 5.55 3.5 5 C 3.5 4.45 3.95 4 4.5 4 C 5.05 4 5.5 4.45 5.5 5 Z",
+       "M 12.5 4 C 12.5 4.55 12.05 5 11.5 5 C 10.95 5 10.5 4.55 10.5 4 C 10.5 3.45 10.95 3 11.5 3 C 12.05 3 12.5 3.45 12.5 4 Z"
+      ],
+      "rules": [
+       "nonzero",
+       "nonzero",
+       "nonzero"
+      ]
+     },
+     "seam": {
+      "d": [
+       "M 8 2 L 3 14 L 6 14 L 7 11 L 9 11 L 10 14 L 13 14 Z",
+       "M 5.5 5 C 5.5 5.55 5.05 6 4.5 6 C 3.95 6 3.5 5.55 3.5 5 C 3.5 4.45 3.95 4 4.5 4 C 5.05 4 5.5 4.45 5.5 5 Z",
+       "M 12.5 4 C 12.5 4.55 12.05 5 11.5 5 C 10.95 5 10.5 4.55 10.5 4 C 10.5 3.45 10.95 3 11.5 3 C 12.05 3 12.5 3.45 12.5 4 Z"
+      ],
+      "rules": [
+       "nonzero",
+       "nonzero",
+       "nonzero"
+      ],
+      "knocked": [],
+      "gap_fronts": []
+     },
+     "extent": 0.75,
+     "considered": [
+      {
+       "label": "small mark",
+       "letter_px": null,
+       "crisp": 0.618,
+       "faithful": true
+      }
+     ],
+     "full": true
+    }
+   },
+   "dark_mapping": {}
+  },
+  "og": {
+   "theme": "dark",
+   "bg": "#05050D",
+   "fg": "#F6F7F8",
+   "muted": "#9FA1AD",
+   "title_size": 60,
+   "wordmark": false,
+   "title_lines": [
+    "Explore Axie traits",
+    "and value estimates"
+   ],
+   "subtitle_lines": [
+    "Compare traits, historical",
+    "market observations and",
+    "uncertain value estimates."
+   ],
+   "title_cut": false,
+   "subtitle_cut": false,
+   "contrast_title": 18.94,
+   "contrast_subtitle": 7.91,
+   "mark_colours": [
+    "#05050D",
+    "#06B6D4",
+    "#408FE3",
+    "#8B5CF6"
+   ],
+   "badge": null,
+   "column": [
+    88,
+    612
+   ],
+   "rule_top": 131,
+   "lines": [
+    {
+     "role": "title",
+     "text": "Explore Axie traits",
+     "width": 525.6,
+     "x": 88,
+     "baseline": 222.7,
+     "size": 60
+    },
+    {
+     "role": "title",
+     "text": "and value estimates",
+     "width": 578.8,
+     "x": 88,
+     "baseline": 288.7,
+     "size": 60
+    },
+    {
+     "role": "subtitle",
+     "text": "Compare traits, historical",
+     "width": 346.2,
+     "x": 88,
+     "baseline": 358.5,
+     "size": 30
+    },
+    {
+     "role": "subtitle",
+     "text": "market observations and",
+     "width": 344.1,
+     "x": 88,
+     "baseline": 400.5,
+     "size": 30
+    },
+    {
+     "role": "subtitle",
+     "text": "uncertain value estimates.",
+     "width": 364.4,
+     "x": 88,
+     "baseline": 442.5,
+     "size": 30
+    }
+   ],
+   "floor": 524.0,
+   "footer": {
+    "text": "AxiePro  ·  www.axiepro.io",
+    "width": 292.3,
+    "x": 88,
+    "baseline": 566,
+    "size": 24
+   },
+   "mark_box": [
+    800.3,
+    131.1,
+    1083.7,
+    471.1
+   ]
+  },
+  "og_pages": {},
+  "colour_sheet": {
+   "size": [
+    1200,
+    1128
+   ]
+  },
+  "cmyk": {
+   "#8B5CF6": {
+    "cmyk": [
+     73,
+     97,
+     0,
+     0
+    ],
+    "out_of_gamut": true
+   },
+   "#06B6D4": {
+    "cmyk": [
+     67,
+     0,
+     19,
+     0
+    ],
+    "out_of_gamut": false
+   },
+   "#8C8E9C": {
+    "cmyk": [
+     40,
+     28,
+     21,
+     13
+    ],
+    "out_of_gamut": false
+   },
+   "#F8F8FC": {
+    "cmyk": [
+     3,
+     2,
+     0,
+     0
+    ],
+    "out_of_gamut": false
+   },
+   "#05050D": {
+    "cmyk": [
+     73,
+     70,
+     53,
+     89
+    ],
+    "out_of_gamut": false
+   }
+  },
+  "ground_light": "#F8F8FC",
+  "ground_dark": "#05050D",
+  "measured": {
+   "maskable_radius": 176.3,
+   "maskable_extent": 0.555,
+   "app_extent": 0.699,
+   "favicon": {
+    "16": {
+     "left": 3,
+     "top": 3,
+     "right": 3,
+     "bottom": 2
+    },
+    "32": {
+     "left": 5,
+     "top": 4,
+     "right": 5,
+     "bottom": 3
+    },
+    "48": {
+     "left": 8,
+     "top": 6,
+     "right": 8,
+     "bottom": 5
+    }
+   }
+  }
+ },
+ "fonts": {
+  "wordmark": [
+   "Inter",
+   "SemiBold"
+  ],
+  "mark": null,
+  "mark_bold_cut": null,
+  "labels": [
+   "JetBrains Mono",
+   "Regular"
+  ],
+  "og": {
+   "title": [
+    "Inter",
+    "SemiBold"
+   ],
+   "subtitle": [
+    "Inter",
+    "Light"
+   ]
+  },
+  "cap_height_em": 0.7275,
+  "also_installed": [
+   "Inter"
+  ],
+  "stacks": {
+   "display": [
+    "Inter",
+    "system-ui",
+    "sans-serif"
+   ],
+   "body": [
+    "Inter",
+    "system-ui",
+    "sans-serif"
+   ],
+   "mono": [
+    "JetBrains Mono",
+    "ui-monospace",
+    "Menlo",
+    "monospace"
+   ]
+  }
+ },
+ "mark": {
+  "kind": "svg",
+  "shapes": 4,
+  "names": [
+   "a",
+   "highlight",
+   "dot-cyan",
+   "dot-violet"
+  ],
+  "colours": [
+   "#06B6D4",
+   "#408FE3",
+   "#66A5E9",
+   "#8B5CF6"
+  ],
+  "outer_colours": [
+   "#06B6D4",
+   "#408FE3",
+   "#8B5CF6"
+  ],
+  "coverage": 0.477,
+  "knockouts": {
+   "0": [
+    1
+   ]
+  },
+  "shape_colours": [
+   "#408FE3",
+   "#66A5E9",
+   "#06B6D4",
+   "#8B5CF6"
+  ]
+ },
+ "swatches": [
+  [
+   "axiepro primary",
+   "#8B5CF6"
+  ],
+  [
+   "axiepro accent",
+   "#06B6D4"
+  ],
+  [
+   "axiepro neutral",
+   "#8C8E9C"
+  ],
+  [
+   "axiepro ground light",
+   "#F8F8FC"
+  ],
+  [
+   "axiepro ground dark",
+   "#05050D"
+  ],
+  [
+   "axiepro primary 50",
+   "#F7F5FF"
+  ],
+  [
+   "axiepro primary 100",
+   "#EBE8FF"
+  ],
+  [
+   "axiepro primary 200",
+   "#DAD2FF"
+  ],
+  [
+   "axiepro primary 300",
+   "#C3B4FF"
+  ],
+  [
+   "axiepro primary 400",
+   "#A68AFF"
+  ],
+  [
+   "axiepro primary 500",
+   "#8B5CF6"
+  ],
+  [
+   "axiepro primary 600",
+   "#7642DC"
+  ],
+  [
+   "axiepro primary 700",
+   "#5F2DB8"
+  ],
+  [
+   "axiepro primary 800",
+   "#4A1F94"
+  ],
+  [
+   "axiepro primary 900",
+   "#371670"
+  ],
+  [
+   "axiepro primary 950",
+   "#21094A"
+  ],
+  [
+   "axiepro accent 50",
+   "#ECFAFD"
+  ],
+  [
+   "axiepro accent 100",
+   "#D5F1F9"
+  ],
+  [
+   "axiepro accent 200",
+   "#AFE3F1"
+  ],
+  [
+   "axiepro accent 300",
+   "#7AD0E5"
+  ],
+  [
+   "axiepro accent 400",
+   "#06B6D4"
+  ],
+  [
+   "axiepro accent 500",
+   "#0096AF"
+  ],
+  [
+   "axiepro accent 600",
+   "#00798E"
+  ],
+  [
+   "axiepro accent 700",
+   "#006071"
+  ],
+  [
+   "axiepro accent 800",
+   "#004B59"
+  ],
+  [
+   "axiepro accent 900",
+   "#003742"
+  ],
+  [
+   "axiepro accent 950",
+   "#002129"
+  ],
+  [
+   "axiepro neutral 50",
+   "#F6F7F8"
+  ],
+  [
+   "axiepro neutral 100",
+   "#EAEBEF"
+  ],
+  [
+   "axiepro neutral 200",
+   "#D7D9DF"
+  ],
+  [
+   "axiepro neutral 300",
+   "#BFC0CA"
+  ],
+  [
+   "axiepro neutral 400",
+   "#9FA1AD"
+  ],
+  [
+   "axiepro neutral 500",
+   "#8C8E9C"
+  ],
+  [
+   "axiepro neutral 600",
+   "#696B78"
+  ],
+  [
+   "axiepro neutral 700",
+   "#535460"
+  ],
+  [
+   "axiepro neutral 800",
+   "#40424B"
+  ],
+  [
+   "axiepro neutral 900",
+   "#2F3037"
+  ],
+  [
+   "axiepro neutral 950",
+   "#1C1C22"
+  ]
+ ],
+ "motion": false,
+ "files": [
+  "brand.vectorcraft",
+  "BRAND.md",
+  "index.html",
+  "kit.json",
+  "source/brand.json",
+  "source/mark-source.svg",
+  "source/mark-small.svg",
+  "logo/mark.svg",
+  "logo/mark.png",
+  "logo/mark@2x.png",
+  "logo/mark-mono-black.svg",
+  "logo/mark-mono-black.png",
+  "logo/mark-mono-black@2x.png",
+  "logo/mark-mono-white.svg",
+  "logo/mark-mono-white.png",
+  "logo/mark-mono-white@2x.png",
+  "logo/wordmark.svg",
+  "logo/wordmark.png",
+  "logo/wordmark@2x.png",
+  "logo/wordmark-reversed.svg",
+  "logo/wordmark-reversed.png",
+  "logo/wordmark-reversed@2x.png",
+  "logo/lockup-horizontal.svg",
+  "logo/lockup-horizontal.png",
+  "logo/lockup-horizontal@2x.png",
+  "logo/lockup-horizontal-reversed.svg",
+  "logo/lockup-horizontal-reversed.png",
+  "logo/lockup-horizontal-reversed@2x.png",
+  "logo/lockup-stacked.svg",
+  "logo/lockup-stacked.png",
+  "logo/lockup-stacked@2x.png",
+  "logo/lockup-stacked-reversed.svg",
+  "logo/lockup-stacked-reversed.png",
+  "logo/lockup-stacked-reversed@2x.png",
+  "logo/mark.pdf",
+  "logo/lockup-horizontal.pdf",
+  "logo/on-light/lockup-horizontal@2x.png",
+  "logo/on-light/lockup-stacked@2x.png",
+  "logo/on-light/wordmark@2x.png",
+  "logo/on-light/mark@2x.png",
+  "logo/on-dark/lockup-horizontal@2x.png",
+  "logo/on-dark/lockup-stacked@2x.png",
+  "logo/on-dark/wordmark@2x.png",
+  "logo/on-dark/mark@2x.png",
+  "web/favicon.ico",
+  "web/favicon.svg",
+  "web/favicon-16.png",
+  "web/favicon-32.png",
+  "web/apple-touch-icon.png",
+  "web/icon-192.png",
+  "web/icon-512.png",
+  "web/icon-maskable-512.png",
+  "web/site.webmanifest",
+  "web/head-snippet.html",
+  "web/head-home.html",
+  "web/og.jpg",
+  "web/og.png",
+  "social/avatar-1024.png",
+  "social/avatar-400.png",
+  "colour/palette.json",
+  "colour/tokens.json",
+  "colour/tokens.css",
+  "colour/tailwind.theme.css",
+  "colour/tailwind.colors.js",
+  "colour/contrast.md",
+  "colour/swatches.ase",
+  "colour/swatches.gpl",
+  "colour/swatches.css",
+  "colour/colour-sheet.svg",
+  "colour/colour-sheet.png",
+  "colour/colour-sheet@2x.png"
+ ],
+ "og_alt": "AxiePro card: the AxiePro logo mark beside the headline “Explore Axie traits and value estimates” on a very dark cool grey background.",
+ "page_alts": {}
+}

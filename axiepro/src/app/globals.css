@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* The brand kit's generated files are not app source */
+@source not "../../brand";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

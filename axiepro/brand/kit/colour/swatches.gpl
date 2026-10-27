@@ -1,0 +1,47 @@
+GIMP Palette
+Name: AxiePro
+Columns: 0
+#
+# Group: axiepro brand
+139  92 246	axiepro primary
+  6 182 212	axiepro accent
+140 142 156	axiepro neutral
+# Group: axiepro ground
+248 248 252	axiepro ground light
+  5   5  13	axiepro ground dark
+# Group: axiepro primary scale
+247 245 255	axiepro primary 50
+235 232 255	axiepro primary 100
+218 210 255	axiepro primary 200
+195 180 255	axiepro primary 300
+166 138 255	axiepro primary 400
+139  92 246	axiepro primary 500
+118  66 220	axiepro primary 600
+ 95  45 184	axiepro primary 700
+ 74  31 148	axiepro primary 800
+ 55  22 112	axiepro primary 900
+ 33   9  74	axiepro primary 950
+# Group: axiepro accent scale
+236 250 253	axiepro accent 50
+213 241 249	axiepro accent 100
+175 227 241	axiepro accent 200
+122 208 229	axiepro accent 300
+  6 182 212	axiepro accent 400
+  0 150 175	axiepro accent 500
+  0 121 142	axiepro accent 600
+  0  96 113	axiepro accent 700
+  0  75  89	axiepro accent 800
+  0  55  66	axiepro accent 900
+  0  33  41	axiepro accent 950
+# Group: axiepro neutral scale
+246 247 248	axiepro neutral 50
+234 235 239	axiepro neutral 100
+215 217 223	axiepro neutral 200
+191 192 202	axiepro neutral 300
+159 161 173	axiepro neutral 400
+140 142 156	axiepro neutral 500
+105 107 120	axiepro neutral 600
+ 83  84  96	axiepro neutral 700
+ 64  66  75	axiepro neutral 800
+ 47  48  55	axiepro neutral 900
+ 28  28  34	axiepro neutral 950
