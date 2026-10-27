@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { SHARE_CARD } from "@/lib/share-card";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://axiepro.io"),
+  metadataBase: new URL("https://www.axiepro.io"),
   title: {
     default: "AxiePro — Axie Infinity deal-finder & valuation",
     template: "%s · AxiePro",
@@ -35,13 +36,23 @@ export const metadata: Metadata = {
     "valuation",
   ],
   authors: [{ name: "AxiePro" }],
+  // Brand kit: brand/kit/web, copied byte for byte into public/
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/site.webmanifest",
   openGraph: {
     title: "AxiePro — Axie Infinity deal-finder & valuation",
     description:
       "Read-only analytics for Axie traders — find undervalued deals and value Axies by traits.",
-    url: "https://axiepro.io",
+    url: "https://www.axiepro.io",
     siteName: "AxiePro",
     type: "website",
+    images: [SHARE_CARD],
   },
   twitter: {
     card: "summary_large_image",
@@ -50,6 +61,9 @@ export const metadata: Metadata = {
       "Read-only analytics for Axie traders — find undervalued deals and value Axies by traits.",
   },
 };
+
+// The page is always dark (className="dark" below), so one theme-color, as the kit's head-snippet.html has it
+export const viewport: Viewport = { themeColor: "#05050D", colorScheme: "dark" };
 
 export default function RootLayout({
   children,
