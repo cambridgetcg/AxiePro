@@ -147,7 +147,8 @@ test.describe('Market Analytics', () => {
 
   test('API response includes fresh data indicator', async ({ page }) => {
     // Intercept API response to check meta.source
-    let apiResponse: { success: boolean; data: unknown; meta?: { source?: string } } | null = null;
+    // Asserted, not annotated: assigned only in the callback, so TS would narrow it to null
+    let apiResponse = null as { success: boolean; data: unknown; meta?: { source?: string } } | null;
 
     // Set up mock that we can also observe
     await setupApiMocks(page);
@@ -255,8 +256,9 @@ test.describe('Market Analytics - Error Scenarios', () => {
 
   test('Handles empty data gracefully', async ({ page }) => {
     // Set up mocks with empty data
+    // The empty payload deliberately lacks the per-class prices that MockConfig's type expects
     await setupApiMocks(page, {
-      floorPrices: emptyMocks.floorPrices,
+      floorPrices: emptyMocks.floorPrices as typeof mockFloorPrices,
       snipes: emptyMocks.snipes,
     });
 
