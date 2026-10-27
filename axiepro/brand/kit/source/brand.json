@@ -1,0 +1,41 @@
+{
+  "name": "AxiePro",
+  "url": "https://www.axiepro.io",
+  "description": "Read-only, non-custodial analytics for Axie Infinity traders. Track sales, value Axies by traits, and find undervalued deals on the Ronin chain. Informational, not financial advice.",
+  "lang": "en",
+  "colours": {
+    "primary": "#8B5CF6",
+    "accent": "#06B6D4",
+    "neutral": "#8C8E9C"
+  },
+  "ground": {
+    "light": "#F8F8FC",
+    "dark": "#05050D"
+  },
+  "mark": {
+    "svg": "mark-source.svg",
+    "small": "mark-small.svg"
+  },
+  "wordmark": {
+    "text": "AxiePro",
+    "font": "Inter",
+    "style": "SemiBold",
+    "colour": "#090A13",
+    "colour_dark": "#EDEEF5"
+  },
+  "icon": {
+    "tile": "#0F0F14",
+    "ink": "original",
+    "radius": 0.22
+  },
+  "og": {
+    "title": "Explore Axie traits and value estimates",
+    "subtitle": "Compare traits, historical market observations and uncertain value estimates.",
+    "theme": "dark"
+  },
+  "app": {
+    "display": "browser",
+    "theme": "dark",
+    "color_scheme": "dark"
+  }
+}

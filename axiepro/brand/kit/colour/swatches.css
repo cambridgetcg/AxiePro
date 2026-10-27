@@ -1,0 +1,46 @@
+/* AxiePro */
+:root {
+  /* axiepro brand */
+  --axiepro-primary: #8b5cf6;
+  --axiepro-accent: #06b6d4;
+  --axiepro-neutral: #8c8e9c;
+  /* axiepro ground */
+  --axiepro-ground-light: #f8f8fc;
+  --axiepro-ground-dark: #05050d;
+  /* axiepro primary scale */
+  --axiepro-primary-50: #f7f5ff;
+  --axiepro-primary-100: #ebe8ff;
+  --axiepro-primary-200: #dad2ff;
+  --axiepro-primary-300: #c3b4ff;
+  --axiepro-primary-400: #a68aff;
+  --axiepro-primary-500: #8b5cf6;
+  --axiepro-primary-600: #7642dc;
+  --axiepro-primary-700: #5f2db8;
+  --axiepro-primary-800: #4a1f94;
+  --axiepro-primary-900: #371670;
+  --axiepro-primary-950: #21094a;
+  /* axiepro accent scale */
+  --axiepro-accent-50: #ecfafd;
+  --axiepro-accent-100: #d5f1f9;
+  --axiepro-accent-200: #afe3f1;
+  --axiepro-accent-300: #7ad0e5;
+  --axiepro-accent-400: #06b6d4;
+  --axiepro-accent-500: #0096af;
+  --axiepro-accent-600: #00798e;
+  --axiepro-accent-700: #006071;
+  --axiepro-accent-800: #004b59;
+  --axiepro-accent-900: #003742;
+  --axiepro-accent-950: #002129;
+  /* axiepro neutral scale */
+  --axiepro-neutral-50: #f6f7f8;
+  --axiepro-neutral-100: #eaebef;
+  --axiepro-neutral-200: #d7d9df;
+  --axiepro-neutral-300: #bfc0ca;
+  --axiepro-neutral-400: #9fa1ad;
+  --axiepro-neutral-500: #8c8e9c;
+  --axiepro-neutral-600: #696b78;
+  --axiepro-neutral-700: #535460;
+  --axiepro-neutral-800: #40424b;
+  --axiepro-neutral-900: #2f3037;
+  --axiepro-neutral-950: #1c1c22;
+}
