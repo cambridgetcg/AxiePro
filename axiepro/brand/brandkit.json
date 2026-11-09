@@ -1,0 +1,89 @@
+{
+  "format": "brandkit.project/1",
+  "name": "AxiePro",
+  "kind": "generated",
+  "owner": "the AxiePro lane (repository cambridgetcg/AxiePro)",
+  "decided": [
+    {
+      "part": "the mark",
+      "status": "not-recorded",
+      "what": "the A of public/logo-simple.svg, with its cyan #06B6D4 and violet #8B5CF6 dots, on logo-icon.svg's #0F0F14 tile",
+      "record": "CREDITS.md: made by an agent in commit cad7e87 (\"Add minimalistic logo and update branding\", 2025-12-15), which carries \"Generated with Claude Code\" and a Claude Opus 4.5 co-author under the git name \"Yu\"; who chose the A is not recorded beyond that commit"
+    },
+    {
+      "part": "the kit",
+      "by": "agent (Claude Code session dd025d89)",
+      "under": "Yu's delegation of 2026-10-20; Yu's word of 2026-10-27, \"yes, go ahead and wire the kits into the sites\", approved wiring kits into the sites, not this look",
+      "date": "2026-10-27",
+      "what": "the site's existing look as an agent read it: a flat redraw of public/logo-simple.svg (the A's violet-to-cyan gradient flattened to #408FE3) on the #0F0F14 tile, an Inter SemiBold wordmark, dark only on #05050D",
+      "record": "AxiePro PR #3 (merge 9b38f9e), section 'Look decisions'; ledger artcraft-estate-wiring"
+    }
+  ],
+  "spec": "kit/source/brand.json",
+  "kit": "kit",
+  "site": {
+    "urls": [
+      "https://www.axiepro.io"
+    ],
+    "framework": "next-app-router",
+    "layout": "../src/app/layout.tsx"
+  },
+  "serve": {
+    "to": "../public",
+    "files": [
+      "favicon.ico",
+      "favicon.svg",
+      "apple-touch-icon.png",
+      "icon-192.png",
+      "icon-512.png",
+      "icon-maskable-512.png",
+      "site.webmanifest",
+      "og.jpg"
+    ],
+    "omit": [
+      {
+        "file": "head-home.html",
+        "why": "its JSON-LD isn't used, because page.tsx is a client component"
+      }
+    ]
+  },
+  "build": {
+    "command": "VECTORCRAFT_NO_PREFS=1 python3 <artcraft-brand>/scripts/brandkit.py source/brand.json --out . --rebuild-check",
+    "cwd": "kit",
+    "fonts": [
+      {
+        "family": "Inter Light (the share card's subtitle and footer; vectorcraft-cli doesn't bundle this style)",
+        "file": "Inter-Light.otf",
+        "licence": "SIL Open Font License 1.1 (name ID 13 of the installed Inter-Light.otf and InterVariable.ttf; Copyright 2016 The Inter Project Authors)",
+        "source": "https://github.com/rsms/inter; installed in ~/Library/Fonts on the Studio since 2024-11-15. Which installed file VectorCraft drew it from (Inter-Light.otf or InterVariable.ttf) was not recorded, so no SHA-256 is given"
+      }
+    ],
+    "tools": [
+      {
+        "name": "vectorcraft-cli",
+        "version": "0.17.0"
+      }
+    ]
+  },
+  "guards": [
+    {
+      "path": "check.mjs",
+      "runs": "/axiepro/package.json"
+    }
+  ],
+  "deploy": {
+    "on_merge": "Vercel's Git integration (root directory axiepro) builds main and deploys production at https://www.axiepro.io; axiepro.io answers 307 to www, and app.axiepro.io and frontend-eight-cyan-60.vercel.app serve the same build (checked 2026-11-05). Frontend CI (npm ci, tsc, build) runs on pushes and pull requests that touch axiepro/**. The legacy Cloudflare Pages copy, axiepro.pages.dev, is not updated by a merge and still serves the template favicon (checked 2026-11-05); DEPLOY.md's hand wrangler deploy, with Yu's Cloudflare login, is the only way to update it",
+    "after_deploy": "Vercel answers public, max-age=0, must-revalidate and its edge cache is per deployment, so no purge (measured 2026-11-05). Then check per wiring.md §7 on https://www.axiepro.io: the eight served files answer 200 with their types and the kit's bytes; og:image, one theme-color #05050D and one color-scheme dark sit in <head> for the crawler user agents",
+    "rules": "No AGENTS.md or contributing rules. /README.md 'Orientation': pure understanding, no revenue, KPI or conversion requirement; paid tiers retired (/PRICING.md). The backend is down and deploys by hand only until leaked keys are rotated (/STATE.md, deploy-backend.yml); nothing here touches it. A merge to main deploys production, so it needs Yu's word, or the repository owner's, for that merge. A new CI step is a new gate, which PR #3 left to the owner"
+  },
+  "media": [],
+  "notes": [
+    "The guard is wired by this draft: a step `npm run test:brand` (node brand/check.mjs, in axiepro/package.json) in /.github/workflows/frontend-ci.yml, before npm ci, on pushes to main and pull requests that touch axiepro/**. The repository has no unit-test runner, so it is a plain node step. Adding it is a new gate, the owner's call.",
+    "The spec lives inside the kit, at kit/source/brand.json: the kit was built from a spec folder outside the repository, keeps that brand.json normalised as source/brand.json, and rebuilds from it in place (PR #3). There is no brand.json or mark.svg beside kit/; kit/source/mark-source.svg is the mark and kit/source/mark-small.svg its 16-48 px cut.",
+    "The header and footer still show the gradient public/logo-simple.svg, which is not a kit file.",
+    "src/app/globals.css has @source not \"../../brand\", which keeps this whole folder out of Tailwind's class scan.",
+    "No test checks the Next.js head tags here; PR #3 checked the built head by hand, and site.layout covers only the layout's viewport.",
+    "kit/BRAND.md says Inter Light's licence 'was not checked': the installed files' name tables say SIL OFL 1.1. Inter SemiBold and JetBrains Mono are bundled with vectorcraft-cli, so they have no file to list.",
+    "PR #3 accepted six verify warnings, among them the #0F0F14 tile at 1.19:1 on Chrome's dark tab strip."
+  ]
+}
