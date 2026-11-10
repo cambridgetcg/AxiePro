@@ -22,6 +22,8 @@ import {
 import { MarketPulse, TopDeals, FloorChart } from "@/components/dashboard";
 import { MetaAlertBanner } from "@/components/meta";
 import { useMetaShifts } from "@/hooks/use-meta";
+import { useDeals, useFloorPrices, useMarketStats } from "@/hooks";
+import { cn } from "@/lib/utils";
 
 const features = [
   {
@@ -89,6 +91,29 @@ export default function HomePage() {
     limit: 10,
   });
 
+  // The same queries MarketPulse, TopDeals and FloorChart make (same keys, so no extra requests). While any of
+  // them fails, the page shows one line naming what did not respond, with the time of its own last failed
+  // request, instead of an error panel per request. A query counts as failed while its last error is newer than
+  // its last data: React Query puts a query with no data back to "pending" on every retry, so isError alone
+  // would bring the panels back as skeletons each time. The line goes once later requests answer: deals and
+  // floors poll, and stats poll every minute while they fail.
+  const marketStats = useMarketStats({ pollWhileFailing: true });
+  const deals = useDeals({ minScore: 50 });
+  const floors = useFloorPrices();
+  const failed = (query: { errorUpdatedAt: number; dataUpdatedAt: number }) =>
+    query.errorUpdatedAt > query.dataUpdatedAt;
+  const statsFailed = failed(marketStats);
+  const dealsFailed = failed(deals);
+  const floorsFailed = failed(floors);
+  const failing = [
+    { query: marketStats, name: "market stats" },
+    { query: deals, name: "deals" },
+    { query: floors, name: "floor prices" },
+  ].filter(({ query }) => failed(query));
+  const notResponding = failing.length === 3 ? "market data" : failing.map(({ name }) => name).join(" and ");
+  const checkedAt =
+    failing.length > 0 ? new Date(Math.max(...failing.map(({ query }) => query.errorUpdatedAt))) : null;
+
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
@@ -154,7 +179,32 @@ export default function HomePage() {
       {/* Market Overview - Real Data */}
       <section className="border-y bg-muted/30">
         <div className="container mx-auto px-4 py-8">
-          <MarketPulse />
+          {/* The line is always mounted (empty, so no height) so screen readers announce the words when they
+              appear. The time sits outside the live region, so a later failed check is not announced again.
+              When the stats fail, the line keeps one row of stat cards' height, so the page below barely moves. */}
+          <div className={cn(statsFailed && "flex min-h-[166px] items-center justify-center")}>
+            <p className={cn("text-sm text-muted-foreground text-center", checkedAt && !statsFailed && "mb-4")}>
+              <span role="status">
+                {checkedAt && (
+                  <>
+                    <span aria-hidden="true">⊗</span> {notResponding} not responding
+                  </>
+                )}
+              </span>
+              {checkedAt && (
+                <>
+                  &nbsp;·{" "}
+                  <span className="whitespace-nowrap">
+                    checked{" "}
+                    <time dateTime={checkedAt.toISOString()}>
+                      {checkedAt.toISOString().slice(0, 16).replace("T", " ")}Z
+                    </time>
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          {!statsFailed && <MarketPulse />}
         </div>
       </section>
 
@@ -202,17 +252,20 @@ export default function HomePage() {
       </section>
 
       {/* Deals & Floor Prices Section */}
-      <section className="py-20 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Top Deals - Real Data */}
-            <TopDeals limit={5} />
+      {!(dealsFailed && floorsFailed) && (
+        <section className="py-20 bg-muted/30">
+          <div className="container mx-auto px-4">
+            {/* If one of the two does not respond, the other takes the full width */}
+            <div className={cn("grid gap-8", !dealsFailed && !floorsFailed && "md:grid-cols-2")}>
+              {/* Top Deals - Real Data */}
+              {!dealsFailed && <TopDeals limit={5} />}
 
-            {/* Floor Prices Chart - Real Data */}
-            <FloorChart />
+              {/* Floor Prices Chart - Real Data */}
+              {!floorsFailed && <FloorChart />}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Quick Actions */}
       <section className="py-12">

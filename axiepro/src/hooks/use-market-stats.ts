@@ -38,13 +38,19 @@ export const marketKeys = {
 
 /**
  * Hook to fetch market statistics (24h, 7d, 30d).
+ *
+ * With pollWhileFailing, it asks again every minute while its last request failed, so a page notices when the API
+ * answers again; once it answers, polling stops.
  */
-export function useMarketStats(options?: { enabled?: boolean }) {
+export function useMarketStats(options?: { enabled?: boolean; pollWhileFailing?: boolean }) {
   return useQuery<MarketStatsResponse>({
     queryKey: marketKeys.stats(),
     queryFn: () => marketApi.getStats(),
     enabled: options?.enabled ?? true,
     staleTime: config.defaultStaleTime, // 1 minute
+    refetchInterval: options?.pollWhileFailing
+      ? (query) => (query.state.errorUpdatedAt > query.state.dataUpdatedAt ? 60_000 : false)
+      : undefined,
   });
 }
 
