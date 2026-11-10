@@ -22,6 +22,7 @@ import {
 import { MarketPulse, TopDeals, FloorChart } from "@/components/dashboard";
 import { MetaAlertBanner } from "@/components/meta";
 import { useMetaShifts } from "@/hooks/use-meta";
+import { useDeals, useFloorPrices, useMarketStats } from "@/hooks";
 
 const features = [
   {
@@ -89,6 +90,16 @@ export default function HomePage() {
     limit: 10,
   });
 
+  // The same queries MarketPulse, TopDeals and FloorChart make (same keys, so no extra requests). While any of
+  // them fails, the page shows one line with the time of its own last failed request instead of an error panel
+  // per request. It goes once later requests answer: deals and floors poll, and stats refetch when the tab
+  // returns or the page reloads.
+  const marketStats = useMarketStats();
+  const deals = useDeals({ minScore: 50 });
+  const floors = useFloorPrices();
+  const failing = [marketStats, deals, floors].filter((query) => query.isError);
+  const checkedAt = failing.length > 0 ? new Date(Math.max(...failing.map((query) => query.errorUpdatedAt))) : null;
+
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
@@ -153,8 +164,19 @@ export default function HomePage() {
 
       {/* Market Overview - Real Data */}
       <section className="border-y bg-muted/30">
-        <div className="container mx-auto px-4 py-8">
-          <MarketPulse />
+        <div className="container mx-auto px-4 py-8 space-y-4">
+          {checkedAt && (
+            <p role="status" className="text-sm text-muted-foreground text-center">
+              <span aria-hidden="true">⊗</span> market data not responding ·{" "}
+              <span className="whitespace-nowrap">
+                checked{" "}
+                <time dateTime={checkedAt.toISOString()}>
+                  {checkedAt.toISOString().slice(0, 16).replace("T", " ")}Z
+                </time>
+              </span>
+            </p>
+          )}
+          {!marketStats.isError && <MarketPulse />}
         </div>
       </section>
 
@@ -202,17 +224,19 @@ export default function HomePage() {
       </section>
 
       {/* Deals & Floor Prices Section */}
-      <section className="py-20 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Top Deals - Real Data */}
-            <TopDeals limit={5} />
+      {!(deals.isError && floors.isError) && (
+        <section className="py-20 bg-muted/30">
+          <div className="container mx-auto px-4">
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Top Deals - Real Data */}
+              {!deals.isError && <TopDeals limit={5} />}
 
-            {/* Floor Prices Chart - Real Data */}
-            <FloorChart />
+              {/* Floor Prices Chart - Real Data */}
+              {!floors.isError && <FloorChart />}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Quick Actions */}
       <section className="py-12">
