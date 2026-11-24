@@ -8,10 +8,9 @@ repository `cambridgetcg/brandkit`). `brandkit.json` records this project's deta
 The site's existing look, as an agent read it on 2026-10-27: a flat redraw of `public/logo-simple.svg`. The A's
 violet-to-cyan gradient is flattened to #408FE3, and the A keeps its cyan #06B6D4 and violet #8B5CF6 dots. The icons
 sit on `logo-icon.svg`'s #0F0F14 tile, the wordmark is Inter SemiBold, and the pages are dark only, on #05050D. The
-agent was Claude Code session dd025d89, working under Yu's delegation of 2026-10-20. Yu's word of 2026-10-27 ("yes,
-go ahead and wire the kits into the sites") approved wiring the kits into the sites; it did not choose this look. The
-record is AxiePro PR #3 (merge 9b38f9e), section "Look decisions", and the decisions ledger item
-`artcraft-estate-wiring`.
+agent was Claude Code session dd025d89, working under Yu's delegation of 2026-10-20. Yu's word of 2026-10-27 covered
+adding the kits to the sites; it did not choose this look. The record is AxiePro PR #3 (merge 9b38f9e), section "Look
+decisions", and the decisions ledger item `artcraft-estate-wiring`.
 
 Don't change the identity without its owner's word. Every asset here records who made it in `CREDITS.md`.
 
